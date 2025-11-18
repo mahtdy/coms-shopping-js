@@ -9,6 +9,7 @@ import Order from "../../../repositories/admin/order/model";
 import Productwarehouse from "../../../repositories/admin/productWarehouse/model";
 import Address from "../../../repositories/admin/address/model";
 import { UserInfo } from "../../../core/mongoose-controller/auth/user/userAuthenticator";
+import PaymentService, { PaymentIntent } from "./paymentService";
 
 /**
  * توضیح: ورودی‌های مربوط به جزئیات ارسال و پرداخت توسط این اینترفیس دریافت می‌شود.
@@ -33,36 +34,6 @@ export interface OrderCreationResult {
   paymentIntent: PaymentIntent;
 }
 
-interface PaymentIntent {
-  provider: "mock-gateway";
-  referenceId: string;
-  redirectUrl: string;
-  amount: number;
-  status: "pending";
-  meta: CheckoutMeta;
-}
-
-/**
- * توضیح فارسی: این کلاس فعلا نقش شبیه‌ساز درگاه را دارد تا در آینده به سرویس واقعی متصل شود.
- */
-class PaymentGatewayStub {
-  async initiate(
-    order: Order,
-    totals: { totalPriceProducts: number },
-    meta: CheckoutMeta
-  ): Promise<PaymentIntent> {
-    const referenceId = `PAY-${order._id}-${Date.now()}`;
-    return {
-      provider: "mock-gateway",
-      referenceId,
-      redirectUrl: `https://gateway.test/pay/${referenceId}`,
-      amount: totals.totalPriceProducts,
-      status: "pending",
-      meta,
-    };
-  }
-}
-
 /**
  * توضیح فارسی: سرویس اصلی تبدیل سبد به سفارش که در ادمین و یوزر مشترک است.
  */
@@ -71,14 +42,15 @@ export default class BasketOrderService {
   private orderRepo: OrderRepository;
   private productWarehouseRepo: ProductWarehouseRepository;
   private addressRepo: AddressRepository;
-  private paymentGateway: PaymentGatewayStub;
+  private paymentService: PaymentService;
 
   constructor() {
     this.basketRepo = new BasketRepository();
     this.orderRepo = new OrderRepository();
     this.productWarehouseRepo = new ProductWarehouseRepository();
     this.addressRepo = new AddressRepository();
-    this.paymentGateway = new PaymentGatewayStub();
+    // کامنت: استفاده از سرویس پرداخت واقعی (در حال حاضر MockPaymentGateway)
+    this.paymentService = new PaymentService();
   }
 
   /**
@@ -102,6 +74,7 @@ export default class BasketOrderService {
       items: basket.basketList,
       meta,
       basketDocument: basket,
+      user, // کامنت: ارسال اطلاعات کاربر برای استفاده در پرداخت
     });
 
     return {
@@ -126,15 +99,16 @@ export default class BasketOrderService {
   }
 
   /**
-   * توضیح فارسی: در این متد تمام عملیات (اعتبارسنجی، ثبت سفارش، پرداخت تستی) انجام می‌شود.
+   * توضیح فارسی: در این متد تمام عملیات (اعتبارسنجی، ثبت سفارش، پرداخت واقعی) انجام می‌شود.
    */
   private async createOrderTransaction(params: {
     userId: string;
     items: Order["orderList"];
     meta: CheckoutMeta;
     basketDocument?: Basket;
+    user?: UserInfo;
   }): Promise<OrderCreationResult> {
-    const { userId, items, meta, basketDocument } = params;
+    const { userId, items, meta, basketDocument, user } = params;
 
     if (!items || items.length === 0) {
       throw {
@@ -191,10 +165,24 @@ export default class BasketOrderService {
       });
     }
 
-    const paymentIntent = await this.paymentGateway.initiate(
+    // کامنت: استفاده از سرویس پرداخت واقعی برای ایجاد پرداخت
+    // در حال حاضر از MockPaymentGateway استفاده می‌کند، اما می‌تواند به درگاه واقعی تغییر کند
+    const userInfo: UserInfo = user || {
+      id: userId,
+      name: "",
+      family: "",
+      phoneNumber: "",
+      email: "",
+    };
+    
+    const paymentIntent = await this.paymentService.initiatePayment(
       order,
-      preparedItems.totals,
-      meta
+      preparedItems.totals.totalPriceProducts,
+      userInfo,
+      {
+        description: `پرداخت سفارش ${order._id}`,
+        callbackUrl: process.env.PAYMENT_CALLBACK_URL || `http://localhost:7000/user/payment/callback`,
+      }
     );
 
     return {
