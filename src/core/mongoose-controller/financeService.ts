@@ -81,7 +81,7 @@ export default class FinanceService<T extends Invoice> {
     ///////////////////////// wallet //////////////////////////
     async addWalletPaymentConfig(
         data: PaymentConfig,
-        admin: AdminInfo
+        admin ?: AdminInfo
     ) {
 
         let configId = new Types.ObjectId()
@@ -158,7 +158,7 @@ export default class FinanceService<T extends Invoice> {
 
 
         return {
-            paymentConfig: paymentConfig[0],
+            paymentConfig: paymentConfig,
             transaction
 
         }
@@ -1751,7 +1751,7 @@ export default class FinanceService<T extends Invoice> {
         }
     }
 
-    async addPaymentConfig(data: PaymentConfig, admin: AdminInfo) {
+    async addPaymentConfig(data: PaymentConfig, admin?: AdminInfo) {
         const session = await mongoose.startSession();
         session.startTransaction({
 
@@ -1934,7 +1934,7 @@ export default class FinanceService<T extends Invoice> {
                     for (let j = 0; j < notes.length; j++) {
                         resNotes.push({
                             note: notes[j],
-                            admin: admin._id,
+                            admin: admin?._id,
                             date: new Date()
                         })
                     }
@@ -2055,7 +2055,8 @@ export default class FinanceService<T extends Invoice> {
                     transaction: transaction._id,
                     deadline: data.deadline,
                     payType: data.payType,
-                    info: data.info
+                    info: data.info,
+                    trakingCode
                 } as any)
 
                 if (ispaid) {
@@ -3095,15 +3096,8 @@ export default class FinanceService<T extends Invoice> {
             if (invoice != undefined) {
                 await this.repos.invoiceRepo.acceptCheck(invoice._id, paymentConfig.amount, session)
             }
-            else if (account != undefined && paymentConfig.replacedFrom != undefined) {
+            else if (account != undefined && ( paymentConfig.replacedFrom != undefined || paymentConfig.payFor == "chargeAccount")) {
                 await accountRepo?.increaseWallet(account._id, paymentConfig.amount, session)
-                // await SmsMessager.send({
-                //     template : "walletIncreaseRejected",
-                //     receptor : "",
-                //     parameters : {
-                //         traking
-                //     }
-                // })
             }
 
 
@@ -3353,7 +3347,6 @@ export default class FinanceService<T extends Invoice> {
             await this.repos.transactionRepo.checkPassed(transaction._id)
 
             if (paymentConfig.installment != undefined) {
-                // await this.repos.installmentRepo.installmentPaid(paymentConfig.installment as string)
                 let fullPaid = true
                 let havePenalty = false
                 let installment = await this.repos.installmentRepo.findById(paymentConfig.installment as string)
@@ -3896,12 +3889,14 @@ export default class FinanceService<T extends Invoice> {
 
             await this.repos.paymentConfigRepo.acceptCash(id, session)
             await this.repos.transactionRepo.acceptCash(transaction._id, type, idd, session)
+
+            console.log(account != undefined , paymentConfig.replacedFrom != undefined)
             if (invoice != undefined) {
                 await this.repos.invoiceRepo.acceptCash(invoice._id, paymentConfig.amount, session)
                 await this.repos.taxLogRepo.increaseTax(invoice._id, invoice.tax, session)
             }
 
-            else if (account != undefined && paymentConfig.replacedFrom != undefined) {
+            else if (account != undefined && ( paymentConfig.replacedFrom != undefined || paymentConfig.payFor == "chargeAccount")) {
                 await accountRepo?.increaseWallet(account._id, paymentConfig.amount, session)
             }
 
@@ -4126,7 +4121,7 @@ export default class FinanceService<T extends Invoice> {
                 await this.repos.invoiceRepo.acceptPOS(invoice._id, paymentConfig.amount, session)
                 await this.repos.taxLogRepo.increaseTax(invoice._id, invoice.tax, session)
             }
-            else if (account != undefined && paymentConfig.replacedFrom != undefined) {
+            else if (account != undefined && ( paymentConfig.replacedFrom != undefined || paymentConfig.payFor == "chargeAccount")) {
                 await accountRepo?.increaseWallet(account._id, paymentConfig.amount, session)
             }
 
@@ -4336,7 +4331,7 @@ export default class FinanceService<T extends Invoice> {
                 await this.repos.invoiceRepo.acceptTransfer(invoice._id, paymentConfig.amount, session)
                 await this.repos.taxLogRepo.increaseTax(invoice._id, invoice.tax, session)
             }
-            else if (account != undefined && paymentConfig.replacedFrom != undefined) {
+            else if (account != undefined && ( paymentConfig.replacedFrom != undefined || paymentConfig.payFor == "chargeAccount")) {
                 await accountRepo?.increaseWallet(account._id, paymentConfig.amount, session)
             }
             await this.repos.bankAccountRepo.addMoney(bank._id, paymentConfig.amount, session)

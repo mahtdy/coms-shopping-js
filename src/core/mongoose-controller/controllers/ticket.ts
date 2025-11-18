@@ -92,7 +92,7 @@ export class TicketController extends BaseController<Ticket>{
         }) id: string): Promise<Response> {
         return this.editById(id, {
             $set: {
-                state: TicketState.closed,
+                state: "closed",
                 lastModified: new Date(),
                 stateNumber: 0,
                 closeDate: new Date()
@@ -111,7 +111,7 @@ export class TicketController extends BaseController<Ticket>{
         return this.editById(id, {
             $set:
             {
-                state: TicketState.open,
+                state: "open",
                 stateNumber: 1,
                 lastModified: new Date()
             },
@@ -143,7 +143,7 @@ export class TicketController extends BaseController<Ticket>{
         let query: any = {
             $set: {
                 "admin": adminId,
-                "state": "ارجاء شده"
+                "state": "assigned"
             }
         }
 
@@ -182,7 +182,9 @@ export class TicketController extends BaseController<Ticket>{
                 files: z.array(z.string())
             }).omit({
                 "files": true
-            }))
+            })),
+            parseJson: true,
+            isArray: true
         }) messages: any,
         @Body({
             destination: "id",

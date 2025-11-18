@@ -48,8 +48,7 @@ export class Translator extends Controller {
             }
             let response: any = {}
             for (let i = 0; i < texts.length; i++) {
-                console.log(i, texts[i])
-                response[texts[i]] = await translatorFunc(texts[i], source, destination)
+                response[texts[i]] = await translatorFunc( texts[i].replace(/-/g, " "), source, destination)
                 if (i % 5 == 0) {
                     await this.sleep()
                 }

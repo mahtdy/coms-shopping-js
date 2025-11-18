@@ -1,5 +1,6 @@
 import { Document, Schema, Types, model } from "mongoose";
 import { BaseAdmin } from "../admin/model";
+import FakeComment from "../fakeComment/model";
 
 export default interface Comment extends Document {
     text: string,
@@ -23,6 +24,7 @@ export default interface Comment extends Document {
     dislike: number,
     reported ?: boolean,
     manual: boolean,
+    manualId: Types.ObjectId | string | FakeComment,
     commentInfo :{
         ip : string,
         geo : any,
@@ -126,6 +128,11 @@ const commentSchema = new Schema({
         type: Boolean,
         required : true,
         default : false
+    },
+    manualId: {
+        type : Types.ObjectId,
+        required : false,
+        ref : "fake-comment"
     },
     commentInfo :{
         type : new Schema({

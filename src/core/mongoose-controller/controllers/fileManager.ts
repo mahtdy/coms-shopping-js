@@ -739,12 +739,11 @@ export class FileManager extends Controller {
         }) size: number
     ): Promise<Response> {
         try {
-            // console.log(this.cdn)
             let conf = await this.fileManagerRepo.findById(this.cdn.CDN_id || "")
-            // console.log("conf", conf)
+
             let totalSize = conf?.totalSize || 1
             let usedSize = conf?.usedSize || 0
-            // console.log(usedSize, totalSize, (usedSize + size) / totalSize) 
+
             if (((usedSize + size) / totalSize) > 0.95) {
                 if (((usedSize + size) / totalSize) > 0.95) {
                     return {
@@ -895,7 +894,7 @@ export class FileManager extends Controller {
         }
     }
 
-    
+
     async restoreFromBackup(
         @Body({
             destination: "files",
@@ -930,7 +929,7 @@ export class FileManager extends Controller {
 
         let codes = []
 
-        let info :any[] = []
+        let info: any[] = []
         for (let i = 0; i < files.length; i++) {
             let allFiles = 0
             let toCdn: string | Types.ObjectId = ""
@@ -964,7 +963,6 @@ export class FileManager extends Controller {
 
             let directory = fileName.slice(0, name.length * -1)
 
-            console.log(this.cdn)
 
             let operation = await this.cdnOperationRepo.insert({
                 operation: "backup-restore",
@@ -994,7 +992,7 @@ export class FileManager extends Controller {
                 cacheStr: code
             })
 
-            
+
 
         }
 
@@ -1740,7 +1738,6 @@ export class FileManager extends Controller {
     ): Promise<Response> {
 
         var code = RandomGenarator.generateHashStr(32)
-        // var allFiles = file.endsWith("/") ? (await this.cdn.getFolderAllFiles(file))?.length || 0 : 1
         var allFiles = file.endsWith("/") && this.cdn.type != "ftp" ? (await this.cdn.getFolderAllFiles(file))?.length || 0 : 1
 
         let operation = await this.cdnOperationRepo.insert({
@@ -2131,6 +2128,34 @@ export class FileManager extends Controller {
         }
     }
 
+
+    async checkCanChangePath(
+        @Query({
+            destination: "path",
+            schema: z.string()
+        }) p: string
+    ) {
+        try {
+
+            var url = this.makeFileQuery(p)
+            var query = {
+                file: {
+                    $regex: url
+                }
+            }
+            var fileUses = await this.fileUsesRepo.findOne(
+                query
+            )
+
+            return {
+                status: 200,
+                data : fileUses != null
+            }
+        } catch (error) {
+            throw error
+        }
+    }
+
     checkPathIsLocked(access: string) {
         // return
         return async (session: any, body: any, query: any): Promise<Response> => {
@@ -2480,15 +2505,14 @@ export class FileManager extends Controller {
                             }
                     }
 
-                    console.log("ok")
                     return {
                         next: true
                     }
+
                 }
 
             }
             catch (error) {
-                // console.log("error" ,error)
                 throw error
             }
         }
@@ -3246,27 +3270,27 @@ export class FileManager extends Controller {
             preExecs: [{
                 func: this.init.bind(this),
             }]
-        })
-
+        })     
+        
+        this.addRoute("/path/check", "get", this.checkCanChangePath.bind(this), { })
 
         this.addRoute("/path/exists", "post", this.validatePath.bind(this), {
             preExecs: [{
                 func: this.init.bind(this),
             }]
         })
+
         this.addRoute("/backup/restore", "post", this.restoreFromBackup.bind(this), {
             preExecs: [{
                 func: this.init.bind(this),
             }]
         })
+        
         this.addRoute("/backup/validate", "post", this.validateBackup.bind(this), {
             preExecs: [{
                 func: this.init.bind(this),
             }]
         })
-
-
-
 
         this.addRoute("/reset", "post", this.restConctection.bind(this))
     }

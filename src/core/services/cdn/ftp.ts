@@ -1722,10 +1722,14 @@ export class FTP implements FileMager {
 
 
             let files: string[] = []
+            var filesCount = 0
             if (options?.files) {
                 for (let i = 0; i < options?.files.length; i++) {
                     if (!files.includes(options.files[i])) {
                         files.push(options.files[i])
+                        if(!options.files[i].endsWith("/")){
+                            filesCount += 1
+                        }
                     }
                 }
             }
@@ -1740,7 +1744,7 @@ export class FTP implements FileMager {
 
             await cache.set(cacheStr, JSON.stringify({
                 p: 0,
-                totalSize: options?.files?.length,
+                totalSize: filesCount,
                 uploaded: 0
             }))
 

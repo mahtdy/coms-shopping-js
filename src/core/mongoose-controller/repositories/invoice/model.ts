@@ -115,7 +115,7 @@ export const invoiceSchema = new Schema({
         required: false,
     },
     discount: {
-        type: Types.ObjectId,
+        type: Number,
         required: false,
     },
     paidAt: {

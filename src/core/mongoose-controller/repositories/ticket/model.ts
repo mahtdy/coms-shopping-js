@@ -3,7 +3,7 @@ import { Schema, model, Document, Types, connection } from "mongoose";
 var ObjectId = Types.ObjectId
 import BaseUser from '../user/model'
 import Department from '../department/model'
-import {BaseAdmin} from '../admin/model'
+import { BaseAdmin } from '../admin/model'
 // const autoIncrement = require("mongoose-auto-increment")
 
 export enum Owner {
@@ -33,7 +33,7 @@ export default interface Ticket extends Document {
     closeDate?: Date,
     user: BaseUser | string | Types.ObjectId,
     department: Department | string,
-    state: TicketState,
+    state: "open" | "inProccess" | "assigned" | "answered" | "closed" | "userAnswered",
     stateNumber: number,
     messages: {
         text?: string,
@@ -44,7 +44,7 @@ export default interface Ticket extends Document {
         from: string,
         date: Date,
         admin?: BaseAdmin | string,
-        user?: BaseUser   | string
+        user?: BaseUser | string
         assignedAdmin?: BaseAdmin | string,
         assigner?: BaseAdmin | string,
         assignerDepartment?: Department | string,
@@ -57,7 +57,8 @@ export default interface Ticket extends Document {
     starterAdmin: BaseAdmin | string,
     admin?: BaseAdmin | string,
     admins: BaseAdmin[] | string[],
-
+    feedback?: string,
+    feedbackStar?: number
 }
 
 const ticketSchema = new Schema({
@@ -77,7 +78,7 @@ const ticketSchema = new Schema({
     },
     ticketNumber: {
         type: "Number",
-        required: true
+        required: false
     },
     owner: {
         type: String,
@@ -115,8 +116,8 @@ const ticketSchema = new Schema({
     state: {
         type: String,
         required: true,
-        enum: TicketState,
-        default: TicketState.open
+        enum: ["open", "inProccess", "assigned", "answered", "closed", "userAnswered"],
+        default: "open"
     },
     stateNumber: {
         type: "Number",
@@ -221,6 +222,18 @@ const ticketSchema = new Schema({
         required: true,
         ref: "admin"
     },
+
+    feedback: {
+        type: String,
+        required : false
+    },
+    feedbackStar: {
+        type : Number,
+        required : false,
+        max : 5,
+        min : 0
+    }
+
 })
 
 // autoIncrement.initialize(connection);

@@ -12,6 +12,12 @@ import * as filters from 'instagram-filters'
 import fs, { realpath } from "fs"
 import logSystemError from "../errorLogger";
 
+import { promisify } from "util";
+
+const gmAsync = (img: any) => ({
+    write: promisify(img.write).bind(img)
+});
+
 interface ImageProccessingOutPut {
     name: string,
     path: string
@@ -77,6 +83,7 @@ interface CropOptions {
     y?: number
 }
 
+
 export default class ImageProccessesor {
     constructor() {
 
@@ -108,7 +115,7 @@ export default class ImageProccessesor {
             if (waterMarks?.configs) {
                 for (let i = 0; i < waterMarks?.configs.length; i++) {
                     let data = await this.waterMark(baseDir, path, waterMarks.configs[i])
-                    // console.log("data", data)
+                    
                     paths.push({
                         name: "",
                         path: data
@@ -125,7 +132,6 @@ export default class ImageProccessesor {
             try {
                 await DiskFileManager.removeFiles(pathsToDel)
             } catch (err) {
-                //log error
                 throw err
             }
             throw error
@@ -180,6 +186,22 @@ export default class ImageProccessesor {
             }
 
 
+            // if (configs[i].compersionConfig.resultTypes?.includes("avif")) {
+            //     pathh = newPath
+            //     pathh = await this.getAVIF(baseDir, pathh, configs[i].compersionConfig)
+            //     console.log("path" ,paths)
+            //     ps.push(pathh)
+
+            //     await this.proccessResult(pathh, configs[i].compersionConfig)
+            //     paths.push({
+            //         path: pathh,
+            //         name: "jpg" + "$" + configs[i].name
+            //     })
+
+            //     webP = pathh
+            // }
+
+
             forWebP.push(webP)
             DiskFileManager.removeFile(newPath)
         }
@@ -199,6 +221,18 @@ export default class ImageProccessesor {
                     path: pathh,
                     name: "webp" + "$" + configs[i].name
                 })
+            }
+
+            if (configs[i].compersionConfig.resultTypes?.includes("avif")) {
+                pathh = newPath
+                pathh = await this.getAVIF(baseDir, forWebP[i] as string, {})
+                ps.push(pathh)
+
+                paths.push({
+                    path: pathh,
+                    name: "avif" + "$" + configs[i].name
+                })
+
             }
 
 
@@ -247,9 +281,7 @@ export default class ImageProccessesor {
 
                 }
             }
-
             await this.effect(p, waterMark)
-
 
             if (waterMark.filter && !p.endsWith(".png")) {
                 await this.customFilter(p, waterMark.filter)
@@ -412,8 +444,8 @@ export default class ImageProccessesor {
     }
 
 
-    private static async getJPGOnly(baseDir: string, path: string): Promise<string> {
-        var respath = `${path.replace(".webp", "")}.jpg`;
+    private static async getJPGOnly(baseDir: string, path: string ,term : string): Promise<string> {
+        var respath = `${path.replace(term, "")}.jpg`;
         try {
 
 
@@ -433,12 +465,24 @@ export default class ImageProccessesor {
         }
     }
     static async getDimensions(path: string) {
-        return new Promise<gm.Dimensions>((resolve, reject) => {
-            gmCli(path).size((err, dimensions) => {
-                if (err)
-                    reject(err)
-                resolve(dimensions)
-            })
+        return new Promise<gm.Dimensions>( async function(resolve, reject) {
+            if(path.startsWith("http")){
+                let p = await DiskFileManager.downloadFile(path)
+                gmCli(p).size(async (err, dimensions) => {
+                    await DiskFileManager.removeFile(p)
+                    if (err)
+                        reject(err)
+                    resolve(dimensions)
+                })
+            }
+            else{
+                gmCli(path).size((err, dimensions) => {
+                    if (err)
+                        reject(err)
+                    resolve(dimensions)
+                })
+            }
+            
         })
     }
     static async crop(baseDir: string, p: string, options: CropOptions) {
@@ -548,6 +592,27 @@ export default class ImageProccessesor {
         }
     }
 
+    private static async getAVIF(baseDir: string, path: string, waterMark: any): Promise<any> {
+        var respath = `${baseDir}${RandomGenarator.generateHash()}_output.avif`;
+        try {
+            var p = await this.waterMark(baseDir, path, waterMark)
+            await new Promise((resolve, reject) => {
+                var res = gmCli(p)
+
+                res.write(respath, async function (err: any, stdout: any, stderr: any, command: any) {
+                    if (err) {
+                        return reject(err)
+                    }
+                    return resolve(respath)
+                })
+            })
+            return respath
+        }
+        catch (error) {
+            throw error
+        }
+    }
+
     @logSystemError((err: Error) => {
         return {
             part: "watermark",
@@ -573,107 +638,81 @@ export default class ImageProccessesor {
         })
     }
 
+    static async safeRemove(...files: string[]) {
+        for (const f of files) {
+            try { await DiskFileManager.removeFile(f) } catch { }
+        }
+    }
 
     static async resizeAndRename(baseDir: string, imagePath: string, options: {
         x: number,
         q: number,
         suffixs: string[],
         mobile: boolean,
-        watermark: any
-    }): Promise<any> {
-        let img = await DiskFileManager.downloadFile(imagePath)
+        isMapImg? : boolean,
+        watermark?: any
+    }): Promise<string[]> {
+        let img = await DiskFileManager.downloadFile(imagePath);
+      
+        let inf = await this.getDimensions(img)
+   
 
 
-        if (img.endsWith(".webp")) {
-            let delImg = img
-            img = await this.getJPGOnly("src/uploads/tmp/", img)
-
-            try {
-                await DiskFileManager.removeFile(delImg)
-            } catch (error) {
-
+        let nonSupports = [".webp" , ".avif"]
+        for (let i = 0; i < nonSupports.length; i++) {
+            if(img.endsWith(nonSupports[i])){
+                const delImg = img;
+                img = await this.getJPGOnly("src/uploads/tmp/", img , nonSupports[i]);
+                await this.safeRemove(delImg);
+                break
             }
         }
+        inf = await this.getDimensions(img)
 
-        let delImg = img
+     
+    
+        const { width, height } = await this.getDimensions(img);
 
+      
+        
+        const y = Math.floor((height * options.x) / width);
 
+        const base = path.basename(img).replace(/\.[^.]+$/, ""); // بدون پسوند
+        const prefix = options.mobile ? "-mb" : "";
+        const newBase = `${base}${prefix}-${options.x}x${y}`;
 
+        let processedImg = img;
 
-        let resolution = await this.getDimensions(img)
-
-
-        let y = Math.floor((resolution.height * options.x) / resolution.width)
-
-
-        let baseName = path.basename(img)
-
-        let names = baseName.split(".")
-
-        if (options.mobile) {
-            names[names.length - 2] = `${names[names.length - 2]}-mb-${options.x}x${y}`
-        }
-        else {
-            names[names.length - 2] = `${names[names.length - 2]}-${options.x}x${y}`
-        }
-
-        let results: string[] = []
-
-
-        for (let j = 0; j < options.suffixs.length; j++) {
-
-            names[names.length - 1] = options.suffixs[j]
-            let respath = `${baseDir}/${names.join(".")}`
-
-
-            let i = img
-            for (let z = 0; options.watermark != null && options.watermark != undefined && options.watermark.configs != undefined && z < options.watermark.configs.length; z++) {
-                let ext = i
-                i = await this.waterMark("temp/", i, { ...options.watermark.configs[z] })
+        if (options.watermark?.configs && options.isMapImg != true) {
+    
+            for (const cfg of options.watermark.configs) {
+                const old = processedImg;
+                processedImg = await this.waterMark("temp/", processedImg, { ...cfg });
+                await this.safeRemove(old);
             }
-
-            if (options.watermark != null && options.watermark != undefined) {
-                await this.proccessResult(i, options.watermark)
-            }
+            await this.proccessResult(processedImg, options.watermark);
+        }
 
 
-            respath = respath.replace("//", "/")
-
-
-
+        const results = await Promise.all(options.suffixs.map(async (suffix) => {
+            const resPath = `${baseDir}/${newBase}.${suffix}`.replace("//", "/");
+            
             await new Promise((resolve, reject) => {
-                gmCli(i)
+                gmCli(processedImg)
                     .quality(options.q)
                     .resize(options.x)
-                    .write(respath, function (err: any, stdout: any, stderr: any, command: any) {
+                    .write(resPath, (err: any) => err ? reject(err) : resolve(resPath));
+            });
 
-                        if (err) {
+            return resPath;
 
-                            return reject(err)
-                        }
-                        return resolve(respath)
-                    })
-            })
+        }));
 
+        await this.safeRemove(img, processedImg);
 
-            results.push(respath)
-
-            try {
-                await DiskFileManager.removeFile(i)
-            } catch (error) {
-
-            }
-        }
-
-        try {
-            await DiskFileManager.removeFile(delImg)
-        } catch (error) {
-
-        }
-
-
-        return results
+        return results;
     }
+
 
     @logSystemError((err: Error) => {
         return {
@@ -689,6 +728,7 @@ export default class ImageProccessesor {
         if (waterMark.type == waterMarkType.image) {
             try {
                 return await this.makeWaterMarkImage(baseDir, path, waterMark)
+                
             } catch (error) {
                 throw error
             }
@@ -697,6 +737,7 @@ export default class ImageProccessesor {
         else {
             if (waterMark.imageAddress != undefined && waterMark.imageAddress != null) {
                 try {
+                    
                     return await this.makeWaterMarkImage(baseDir, path, waterMark)
                 } catch (error) {
                     throw error
@@ -827,10 +868,10 @@ export default class ImageProccessesor {
         var wmDimensions = await this.calculateWaterMarkDimentions(p, waterMark.imageAddress as string
             , waterMark.waterMarkSizeType == "relative", waterMark.waterMarkSize as number)
         if (waterMark.imageAddress.startsWith("http")) {
-            waterMark.imageAddress = await DiskFileManager.downloadFile(waterMark.imageAddress, "src/uploads/tmp/")
+            waterMark.imageAddress = await DiskFileManager.downloadFile(waterMark.imageAddress, "temp/")
         }
-
         var wpath = await this.resize(baseDir, waterMark.imageAddress, "png", wmDimensions.x || waterMark.x, wmDimensions.y || waterMark.y, "!")
+
         DiskFileManager.removeFile(waterMark.imageAddress)
 
 
@@ -851,7 +892,6 @@ export default class ImageProccessesor {
         delete waterMark['x']
         delete waterMark['y']
 
-
         var respath = await this.makeWaterMark(baseDir, p,
             wmPath, Object.assign({
                 position_x: waterMark.position_x,
@@ -859,6 +899,7 @@ export default class ImageProccessesor {
                 x: 0,
                 y: 0
             }, JSON.parse(JSON.stringify(waterMark))))
+
         await DiskFileManager.removeFiles([
             wmPath,
             // p
@@ -908,6 +949,9 @@ export default class ImageProccessesor {
                     if (err) {
                         return reject(err)
                     }
+                    setTimeout(async () => {
+                        DiskFileManager.removeFile(paths.join('.'))
+                    })
                     return resolve(path)
                 });
         })
@@ -954,7 +998,7 @@ export default class ImageProccessesor {
             }
         } as unknown as any
     })
-    private static async calculateWaterMarkDimentions(imgPath: string, waterMarkPath: string, isPercent: Boolean, value: number): Promise<Dimension> {
+    static async calculateWaterMarkDimentions(imgPath: string, waterMarkPath: string, isPercent: Boolean, value: number): Promise<Dimension> {
         if (isPercent) {
             return new Promise((resolve, reject) => {
                 gmCli(imgPath)
@@ -974,6 +1018,39 @@ export default class ImageProccessesor {
                                     y: resHight
                                 })
                             })
+                    })
+            })
+        }
+
+        else {
+            return {
+                x: 0,
+                y: 0
+            }
+        }
+
+    }
+
+
+    static async calculateDimentions(imgPath: string, width: number, isPercent: Boolean): Promise<Dimension> {
+        if (isPercent) {
+            return new Promise((resolve, reject) => {
+                gmCli(imgPath)
+                    .size(function (err, dimensions) {
+                        if (err) {
+                            return reject(err)
+                        }
+                        if (err) {
+                            return reject(err)
+                        }
+                        let value = width / dimensions.width
+                        var resWidth = Math.round(value * dimensions.width)
+                        var resHight = Math.round(value * dimensions.height)
+                        return resolve({
+                            x: resWidth,
+                            y: resHight
+                        })
+
                     })
             })
         }
@@ -1074,56 +1151,44 @@ export default class ImageProccessesor {
     static async effect(p: string, config: any) {
         try {
             if (config.filter) {
-                await this.customFilter(p, config.filter)
-            }
+                await this.customFilter(p, config.filter);
+            } else {
+                if (p.includes(".webp")) return;
 
-            else {
-                if (p.includes(".webp")) {
-                    return
-                }
-                var image = await Jimp.read(p)
+                let image = gm(p);
+
+
                 if (config.contrast) {
-                    image = await new Promise((resolve, reject) => {
-                        image.contrast(config.contrast, function (err) {
-                            resolve(image)
-                        })
-                    })
-
+                    // gm از -100 تا +100 contrast می‌گیرد
+                    // Sharp linear +1/-128 شبیه‌سازی می‌شه
+                    const contrastValue = Math.round(config.contrast * 100);
+                    image = image.contrast(contrastValue > 0 ? contrastValue : -contrastValue);
                 }
+
+
                 if (config.brightness) {
-                    image = await new Promise((resolve, reject) => {
-                        image.brightness(config.brightness, function (err) {
-                            resolve(image)
-                        })
-                    })
-
-                }
-                if (config.grayscale == true) {
-                    image = await new Promise((resolve, reject) => {
-                        image.grayscale(function (err) {
-                            resolve(image)
-                        })
-                    })
-
-                }
-                if (config.sepia == true) {
-                    image = await new Promise((resolve, reject) => {
-                        image.sepia(function (err) {
-                            resolve(image)
-                        })
-                    })
+                    // gm brightness را با modulate شبیه‌سازی می‌کنیم
+                    const brightness = Math.round((1 + config.brightness) * 100);
+                    image = image.modulate(brightness, 100, 100);
                 }
 
-                await new Promise((resolve, reject) => {
-                    image.write(p, function (err) {
-                        resolve(image)
-                    })
-                })
+
+                if (config.grayscale === true) {
+                    image = image.type("Grayscale");
+                }
+
+
+                if (config.sepia === true) {
+                    // برای sepia در gm می‌توان از sepia-tone استفاده کرد
+                    image = image.sepia();
+                }
+
+
+                await gmAsync(image).write(p);
 
             }
-
         } catch (error) {
-            throw error
+            throw error;
         }
     }
 
@@ -1169,33 +1234,66 @@ export default class ImageProccessesor {
         } as unknown as any
     })
     static async border(p: string, config: any) {
-        return new Promise(async (resolve, reject) => {
-            var image = await Jimp.read(p)
-            var image_gm = gm(p)
-                .fill(config.borderColor || 'white')
-            // .stroke("#6C68FF", 1)
+        try {
+            let image = gm(p);
 
-            if (config.borderLeft) {
-                image_gm = image_gm.drawRectangle(0, 0, config.borderLeft, image.bitmap.height)
-            }
+            const borderLeft = config.borderLeft || 0;
+            const borderRight = config.borderRight || 0;
+            const borderTop = config.borderTop || 0;
+            const borderBottom = config.borderBotton || 0; // دقت کن که typo احتمالی: borderBotton => borderBottom
 
-            if (config.borderRight) {
-                image_gm = image_gm.drawRectangle(image.bitmap.width - config.borderRight, 0, image.bitmap.width, image.bitmap.height)
-            }
+            const borderColor = config.borderColor || "white";
 
-            if (config.borderTop) {
-                image_gm = image_gm.drawRectangle(0, 0, image.bitmap.width, config.borderTop)
-            }
+            // اضافه کردن حاشیه
+            // gm دستور border دارد که تمام لبه‌ها را با یک اندازه می‌سازد، اما برای هر طرف می‌توان از extent استفاده کرد
+            // ابتدا اندازه جدید تصویر را محاسبه می‌کنیم
+            const size = await new Promise<{ width: number, height: number }>((resolve, reject) => {
+                image.size((err, size) => {
+                    if (err) reject(err);
+                    else resolve(size);
+                });
+            });
 
-            if (config.borderBotton) {
-                image_gm = image_gm.drawRectangle(0, image.bitmap.height - config.borderBotton, image.bitmap.width, image.bitmap.height)
+            const newWidth = size.width + borderLeft + borderRight;
+            const newHeight = size.height + borderTop + borderBottom;
+
+            image = image
+                .background(borderColor)
+                .extent(newWidth, newHeight); // extent تصویر را با offset اضافه می‌کند
+
+            // خروجی
+            await gmAsync(image).write(p);
+
+            return p;
+        } catch (err) {
+            throw err;
+        }
+    }
+
+    @logSystemError((err: Error) => {
+        return {
+            part: "watermark",
+            error: err.message,
+            isCritical: false,
+            otherInfo: {
+                function: "compress"
             }
-            image_gm.write(p, function (err, stdout, stderr, command) {
-                resolve(p)
+        } as unknown as any
+    })
+    static async compress(p: string,newName : string, percent: number) {
+        return new Promise((resolve, reject) => {
+            var res = gmCli(p)
+            res = res.quality(percent)
+
+
+            res.write(newName, async function (err: any, stdout: any, stderr: any, command: any) {
+                if (err) {
+                    return reject(err)
+                }
+                return resolve(p)
             })
         })
     }
-
 
 }
 

@@ -94,7 +94,7 @@ export default class BaseRepositoryService<T extends Document> {
     }
 
     project(data: T, projection: any) {
-        if(data == null){
+        if (data == null) {
             return data
         }
         var doc
@@ -273,7 +273,7 @@ export default class BaseRepositoryService<T extends Document> {
 
 
         var population: Object[] = options.population || this.population || []
-        
+
         var execQuery = this.collection.find(query,
             options.projection)
             .sort(options.sort || {
@@ -299,9 +299,9 @@ export default class BaseRepositoryService<T extends Document> {
     }
 
 
-    
+
     async findById(id: Types.ObjectId | string, queryInfo?: QueryInfo, population: any[] = this.population): Promise<T | null> {
-        // console.log("iddd" , id , queryInfo , population)
+
         if (id == undefined) {
             return null
         }
@@ -310,9 +310,8 @@ export default class BaseRepositoryService<T extends Document> {
             for (let i = 0; i < population.length; i++) {
                 execQuery.populate(population[i])
             }
-            return await execQuery
-                .lean<T>()
-                .exec() as T
+            return await execQuery.exec() as T
+
         }
         if (typeof id != "string") {
             id = id.toHexString()
@@ -402,7 +401,7 @@ export default class BaseRepositoryService<T extends Document> {
             }
         }
 
-        
+
         return doc
     }
 
@@ -539,15 +538,15 @@ export default class BaseRepositoryService<T extends Document> {
 
     }
 
-    async findByIdAndUpdate(id: Types.ObjectId | string, query: UpdateQuery<T> ,options?: QueryOptions<T>  ): Promise<T | null> {
-        if(options == undefined){
+    async findByIdAndUpdate(id: Types.ObjectId | string, query: UpdateQuery<T>, options?: QueryOptions<T>): Promise<T | null> {
+        if (options == undefined) {
             options = {}
         }
         options.runValidators = true
         var result = await this.collection.findByIdAndUpdate(id, query, {
             runValidators: true,
 
-        } )
+        })
         this.refreshCacheById(result?._id)
         return result
     }
@@ -598,6 +597,7 @@ export default class BaseRepositoryService<T extends Document> {
         document._id = d?._id
         var res = await this.insert(document)
         return await this.refreshCache(query)
+
     }
 
 

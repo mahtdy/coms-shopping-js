@@ -30,6 +30,7 @@ import ConfigService from './config';
 import CDN_LockedPathRepository from '../mongoose-controller/repositories/cdnLockedPath/repository';
 import BackupFileRepository from '../mongoose-controller/repositories/backupFile/repository';
 import { exec } from 'child_process';
+import { dir } from 'console';
 
 // let cacheService = new CacheStorage()
 const cache = new RedisCache("file_managing")
@@ -220,6 +221,20 @@ export class DiskFileManager implements FileMager {
         return true;
     }
 
+    static async urlStat(url : string){
+        try {
+            const file = await DiskFileManager.downloadFile(url , "temp/")
+            // console.log("file" , file)
+            const stats = await this.stats(file)
+            await this.removeFile(file)
+            return stats
+        } catch (error) {
+            throw error
+        }
+    
+
+    }
+
     static async stats(file: string) {
         try {
             return new Promise<fs.Stats>((resolve, reject) => {
@@ -306,7 +321,7 @@ export class DiskFileManager implements FileMager {
         })
     }
 
-    static writeFile(path: string, data: string) {
+    static writeFile(path: string, data: string | Buffer) {
         return new Promise((resolve, reject) => {
             fs.writeFile(path, data, function (err) {
                 if (err) {
@@ -577,13 +592,13 @@ export class DiskFileManager implements FileMager {
 
 
 
-
             var writer = fs.createWriteStream(p)
             var response = await axios({
                 method: 'get',
                 url: fileUrl,
                 responseType: 'stream',
-                proxy: false
+                proxy: false,
+                timeout: 10000
             })
             return new Promise((resolve, reject) => {
                 response.data.pipe(writer);
@@ -604,6 +619,7 @@ export class DiskFileManager implements FileMager {
                 });
             });
         } catch (error) {
+            
             throw error
         }
 
@@ -860,7 +876,7 @@ function processCDN_Direct_Download(target: any,
                     // // console.log(JSON.parse(d))
                     let status = JSON.parse(d)
 
-                    if (status.p.includes("100")) {
+                    if (status.p?.includes("100")) {
                         // co
                         clearInterval(interval)
                         await UpdateCdnConfig(self, {
@@ -2427,7 +2443,6 @@ export default class CDN_Manager {
     async findCdnFromUrl(url: string) {
         var l = new URL(url)
         try {
-
             var config = await this.fileManagerRepo.findOne({
                 hostUrl: {
                     $regex: l.hostname
@@ -2459,6 +2474,21 @@ export default class CDN_Manager {
         } catch (error) {
 
         }
+    }
+
+    findUrlDirectory(url : string){
+        // console.log("url")
+        if(this.cdn == undefined)
+            return false
+
+        let directory = url.replace(this.cdn?.baseDir , "")
+        let dirs = directory.split("/")
+        if(dirs.length == 1){
+            return ""
+        }
+        dirs.pop()
+        return dirs.join("/")
+
     }
 
     async getFiles(path: string, options?: FileView) {
@@ -2829,6 +2859,8 @@ export default class CDN_Manager {
     @CDN_Manager.addFilesToLockedPaths(0)
     async unzip(file: string, directory: string, options?: UnZipFile) {
         try {
+            console.log("options" , options?.files?.length)
+
             let r = await this.cdn?.unzip(file, directory, options)
             if (options?.cacheStr) {
                 this.cdnOperationRepo.updateOne({
@@ -3026,7 +3058,6 @@ export default class CDN_Manager {
                     let d = await cache.get(options.cacheStr)
                     if (d != null) {
                         var info = JSON.parse(d)
-                        // // console.log("info", info)
                         info.percentage = 100.00
                         await cache.set(options.cacheStr, JSON.stringify(info))
                     }
@@ -3187,6 +3218,7 @@ export default class CDN_Manager {
                 await DiskFileManager.downloadFiles(files, dirPath)
             }
             else {
+                console.log("files" , files)
                 var dirPath = await this.cdn?.downloadFiles(files, {
                     cacheStr: options?.cacheStr
                 }) as string

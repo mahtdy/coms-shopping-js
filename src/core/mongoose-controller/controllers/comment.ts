@@ -1,6 +1,5 @@
 
 import { z } from "zod"
-import webpush from "web-push"
 import { Get, Post, Put } from "../../decorators/method";
 import BaseController, { AutoComplete, ControllerOptions } from "../controller";
 import Comment from "../repositories/comment/model";
@@ -22,6 +21,7 @@ import SmsMessager from "../../messaging/smsMessager";
 import LinkTagRepository from "../repositories/linkTag/repository";
 import NotificationTokenRepository from "../repositories/notificationTokens/repository";
 import NotificationMessager from "../../messaging/notification";
+import FakeCommentRepository from "../repositories/fakeComment/repository";
 
 
 let ejs = require("ejs");
@@ -59,6 +59,7 @@ export class CommentController extends BaseController<Comment> {
     userRepository?: UserRepository<BaseUser>
     linktagRepo?: LinkTagRepository
     notificationTokenRepo :  NotificationTokenRepository
+    fakeCommentRepo : FakeCommentRepository
 
     constructor(baseRoute: string, repo: CommentRepository, options: ControllerOptions & {
         modules: ModuleConfig[],
@@ -72,6 +73,7 @@ export class CommentController extends BaseController<Comment> {
         this.commentFormRepo = new CommentFormRepository()
         this.linktagRepo = new LinkTagRepository()
         this.notificationTokenRepo = new NotificationTokenRepository()
+        this.fakeCommentRepo = new FakeCommentRepository()
     }
     initApis(): void {
         super.initApis()
@@ -98,6 +100,16 @@ export class CommentController extends BaseController<Comment> {
                     adminReply: true
                 }
             })
+            if(replyDoc != null && replyDoc.manualId != undefined){
+                await this.fakeCommentRepo.updateOne({
+                    _id : replyDoc.manualId
+                },{
+                    $inc: {
+                        replies: 1
+                    },
+                })
+            }
+
             await this.repository.updateOne({
                 _id: res.data["_id"]
             }, {
@@ -280,6 +292,25 @@ export class CommentController extends BaseController<Comment> {
                             replies: 1
                         }
                     })
+                    if(replyDoc != null && replyDoc.manualId != undefined){
+                        await this.fakeCommentRepo.updateOne({
+                            _id : replyDoc.manualId
+                        },{
+                            $inc: {
+                                replies: 1
+                            },
+                        })
+                    }
+
+                    if(comment != null && comment.manualId != undefined){
+                        await this.fakeCommentRepo.updateOne({
+                            _id : comment.manualId
+                        },{
+                            $set: {
+                                status : "confirmed"
+                            },
+                        })
+                    }
 
                     await this.repository.updateOne({
                         _id: id
@@ -322,6 +353,26 @@ export class CommentController extends BaseController<Comment> {
                             replies: -1
                         }
                     })
+                    if(comment != null && comment.manualId != undefined){
+                        await this.fakeCommentRepo.updateOne({
+                            _id : comment.manualId
+                        },{
+                            $inc: {
+                                replies: 1
+                            },
+                        })
+                    }
+
+
+                    if(comment != null && comment.manualId != undefined){
+                        await this.fakeCommentRepo.updateOne({
+                            _id : comment.manualId
+                        },{
+                            $set: {
+                                status : "rejected"
+                            },
+                        })
+                    }
                 } catch (error) {
 
                 }
@@ -355,13 +406,26 @@ export class CommentController extends BaseController<Comment> {
             let res = await this.repository.deleteById(id)
             if (comment?.status == "confirmed") {
                 if (comment?.reply) {
-                    await this.repository.updateOne({
-                        _id: comment.reply
-                    }, {
+                    const replyDoc = await this.repository.findByIdAndUpdate(comment.reply, {
                         $inc: {
                             replies: -1
                         }
                     })
+
+                    if(replyDoc != null && replyDoc.manualId != undefined){
+                        await this.fakeCommentRepo.updateOne({
+                            _id : replyDoc.manualId
+                        },{
+                            $inc: {
+                                replies: 1
+                            },
+                        })
+                    }
+
+                    if(comment.manualId != undefined){
+                        await this.fakeCommentRepo.deleteById(comment.manualId as string)
+                    }
+                    
                 }
             }
             this.recurciveDeleteComment(id)

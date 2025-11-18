@@ -129,7 +129,7 @@ export interface LoanInput {
     data: LoanTemplateData | CustomLoanData;
 }
 
-const walletPayment = z.object({
+export const walletPayment = z.object({
     type: z.enum(["multi-stage", "simple"]),
 
     amount: z.coerce.number().int().min(0),

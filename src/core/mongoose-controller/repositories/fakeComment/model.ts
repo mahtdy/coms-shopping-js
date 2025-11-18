@@ -9,7 +9,9 @@ export default interface FakeComment extends Document {
     text: string,
     userInfo: any,
     publishAt: Date,
+    isPublished : boolean,
     cycle ?: Types.ObjectId,
+    replies : number,
 
     replyAdmin?: Types.ObjectId | string,
     replyText?: string,
@@ -18,6 +20,7 @@ export default interface FakeComment extends Document {
 
     info : any
 }
+
 
 const fakeCommentSchema = new Schema({
     pageType : {
@@ -46,9 +49,19 @@ const fakeCommentSchema = new Schema({
         type: Date,
         required: true
     },
+    isPublished : {
+        type : Boolean,
+        required: false
+    },
     cycle : {
         type: Types.ObjectId,
         required : false  
+    },
+
+    replies: {
+        type: Number,
+        required: true,
+        default:0
     },
 
     replyAdmin: {

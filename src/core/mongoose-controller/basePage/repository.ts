@@ -28,10 +28,15 @@ import { Job } from "agenda";
 import GoogleApiTokenRepository from "../repositories/googleApiToken/repository";
 import PublishCycleRepository from "../repositories/publishCycle/repository";
 import ArticleContentProccessor from "../../services/articleProccessing";
-import { scheduler } from "timers/promises";
+
 import CommentRepository from "../repositories/comment/repository";
 import FakeCommentRepository from "../repositories/fakeComment/repository";
 import ConfigService from "../../services/config";
+import ImageResultRepository from "../repositories/imageResult/repository";
+import DomainImageConfig from "../repositories/domainImageConfig/model";
+import WaterMark from "../repositories/waterMarkConfig/model";
+import ImageResult from "../repositories/imageResult/model";
+import FileManagerConfigRepository from "../repositories/fileManagerConfig/repository";
 
 export interface BasePageOptions<T> {
     model: Model<T>,
@@ -129,61 +134,29 @@ function getPathResolver(
         }
     };
 }
+interface ContentsMap {
+    id?: Types.ObjectId | string,
+    text: string,
+    extra?: any
+}
 
 
-// function addPublishLog(target: any,
-//     propertyKey: string,
-//     propertyDescriptor: PropertyDescriptor
-// ): PropertyDescriptor {
-//     propertyDescriptor = propertyDescriptor;
-//     const originalMethod = propertyDescriptor.value;
-
-
-//     propertyDescriptor.value = async function (...args: any[]) {
-//         const self = this as BasePageRepository<BasePage>;
-//         let content = ""
-//         try {
-//             var result = await originalMethod.apply(this, args);
-
-//             let doc = await self.findOne({
-//                 _id: args[0],
-//                 "contents._id": args[1]
-//             }, {
-//                 projection : {
-//                     contents: { $elemMatch: { _id: args[1] } } 
-//                 }
-//             })
-//             if(doc == null) {
-//                 return
-//             }
-//             content = doc.contents?.[0]?.content || ""
-//             await self.contentPublishLogRepo.insert({
-//                 pageType : this.typeName,
-//                 page : args[0],
-//                 subId : args[1],
-//                 date : new Date(),
-//                 webmasterUpdated : true,
-//                 content 
-//             } as any)
-
-//             return result;
-//         } catch (err :any) {
-//             // // console.log(err)
-//             // err.message
-//             await self.contentPublishLogRepo.insert({
-//                 pageType : this.typeName,
-//                 page : args[0],
-//                 subId : args[1],
-//                 date : new Date(),
-//                 webmasterUpdated : true,
-//                 error : err.message,
-//                 content
-//             } as any)
-//             throw err;
-//         }
-//     };
-//     return propertyDescriptor;
-// }
+interface ImageData {
+    source: string,
+    imageLocation: "main" | "in-content" | "in-content-template" | string,
+    size: number,
+    resolution: {
+        width: number,
+        height: number
+    },
+    cropingData?: {
+        [x: string]: {
+            x: number,
+            y: number
+        }
+    },
+    page: Types.ObjectId | string
+}
 
 
 export default class BasePageRepository<T extends BasePage> extends BaseRepositoryService<T> {
@@ -205,6 +178,8 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
     publishCycleRepo: PublishCycleRepository
     commentRepo: CommentRepository
     fakeCommentRepo: FakeCommentRepository
+    imageResultRepo: ImageResultRepository
+    cdnRepo: FileManagerConfigRepository
     constructor(options: RepositoryConfigOptions & BasePageOptions<T>) {
         super(options.model, options)
         this.typeName = options.typeName
@@ -212,6 +187,7 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
         if (this.typeName != undefined && this.contentFunc) {
             customUrlBuilder[this.typeName] = this.contentFunc
         }
+        this.imageResultRepo = new ImageResultRepository()
         this.fileUsesRepo = new FileUsesRepository();
         this.contentRepo = new ContentRepository()
         var contentMaduleRegistry = ContentMaduleRegistry.getInstance()
@@ -242,6 +218,7 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
         this.googleApiTokenRepo = new GoogleApiTokenRepository()
         this.commentRepo = new CommentRepository()
         this.fakeCommentRepo = new FakeCommentRepository()
+        this.cdnRepo = new FileManagerConfigRepository()
 
         this.defineScheduler()
 
@@ -354,11 +331,9 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
 
                 let uploadConfig = await this.getUploadFolders(article?._id, type)
                 for (let i = 0; i < files.length; i++) {
-                    console.log(i ,files[i].path )
                     let file = await DiskFileManager.downloadFile(files[i].path)
-                    console.log("file" , file)
-                    
-                 
+
+
                     let uploadInfo = await this.getUploadInfo(files[i].dimension, uploadConfig)
                     let dynamicPathStyle = await this.systemConfigRepo.getConfigValue(
                         "video-folder-dynamic-style"
@@ -368,7 +343,7 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
                     await this.cdn.init(true)
 
                     const fileURL = await this.cdn.upload(file as string, p + path.basename(file as string))
-                    
+
                     todeletePath.push(files[i].path)
                     files[i].path = fileURL
                 }
@@ -430,9 +405,7 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
         })
         for (let i = 0; i < otherArticles.length; i++) {
             let videos = this.getVideos(otherArticles[i])
-            // if (otherArticles[i].video) {
-            //     videos?.push(otherArticles[i].video as string)
-            // }
+
             await this.checkFileUses(otherArticles[i]._id)
             let isExists = await this.videoRepo.isExists({
                 _id: {
@@ -450,6 +423,7 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
 
 
     getVideos(article: T, justMain: boolean = false) {
+
         let videos: string[] = []
         if (article != null) {
             if (article.videos && article.videos.length > 0 && justMain == false) {
@@ -476,6 +450,67 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
             }
         }
         return videos
+    }
+
+    findContentVideos(doc: T) {
+        let totalLinks: string[] = []
+        totalLinks.push(...this.extractVideoLinksFromHtml(doc.content || ""))
+
+        if (doc.contents != undefined) {
+            for (let i = 0; i < doc.contents.length; i++) {
+                totalLinks.push(...this.extractVideoLinksFromHtml(doc.contents[i].content || ""))
+            }
+        }
+
+        return totalLinks
+    }
+
+    async updateContentVideos(doc: T) {
+        let links = this.findContentVideos(doc)
+        // console.log(links)
+        let videos = []
+        for (let i = 0; i < links.length; i++) {
+            let vid = await this.videoRepo.findOne(
+                {
+                    $or: [
+                        {
+                            src: links[i],
+                        },
+                        {
+                            "result.path": links[i]
+                        }
+                    ],
+                }
+            )
+
+            if (vid != null) {
+                videos.push(vid._id)
+            }
+            else {
+                vid = await this.videoRepo.insert({
+                    src: links[i],
+                    page: doc._id,
+                    pageType: this.collection.modelName,
+                    type: this.typeName,
+                    locked: true,
+                } as any)
+                videos.push(vid?._id)
+            }
+        }
+
+        try {
+            await this.updateOne({
+                _id: doc._id
+            }, {
+                $addToSet: {
+                    videos: {
+                        $each: videos
+                    }
+                }
+            })
+        } catch (error) {
+
+        }
     }
 
     async proccessedVideo(id: string) {
@@ -507,10 +542,15 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
                     $set: {
                         id: res._id,
                         type: this.typeName,
-                        locked: true
+                        locked: true,
+                        page: res?._id,
+                        pageType: this.collection.modelName
                     }
                 })
             }
+
+            await this.updateContentVideos(res)
+
             await this.checkFileUses(res._id.toString())
             if (!document.isDraft && document.publishDate != undefined) {
                 await schaduler.schedule(document.publishDate as Date, `publishContent-${this.typeName}`, {
@@ -523,6 +563,7 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
                     await this.publish(res._id, {
                         category: this.typeName == "category" ? (document as any).catID : undefined
                     })
+
                 } catch (error) {
                     throw error
                 }
@@ -553,6 +594,7 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
 
             return res
         } catch (error) {
+            console.log(error)
             throw error
         }
 
@@ -644,14 +686,35 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
     }
 
     async findById(id: string | Types.ObjectId, queryInfo?: QueryInfo | undefined, population?: Object[]): Promise<T | null> {
-        var d = await super.findById(id, queryInfo, population || queryInfo?.population)
+        var d: any = await super.findById(id, queryInfo, population || queryInfo?.population)
         if (d != null) {
+
             var c = await this.contentRepo.findOne({
                 id,
                 type: this.typeName
             })
             if (c != null)
                 d.seo = c
+
+            // let contentLanguages: any = d.contentLanguages || []
+            // for (let i = 0; i < contentLanguages.length; i++) {
+            //     contentLanguages[i].content = await this.findOne({
+            //         _id : contentLanguages[i].content
+            //     },{
+            //         projection : {
+            //             seoContent : 1,
+            //             title : 1
+            //         }
+            //     },[
+            //         {      
+            //             path: "seoContent",
+            //             select: ["url" , "absoluteUrl"]
+            //         }, 
+
+            //     ])
+
+            // }
+            // d.contentLanguages = contentLanguages
         }
         return d
     }
@@ -719,21 +782,54 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
                     width = r.width.toString()
                 } catch (error) {
 
-
+                    console.log("err",img.getAttribute("src"), error)
 
                 }
             }
-            results.push({
+
+            const isMapImg =img.getAttribute("ismap-img") == "true" 
+            const r =  {
                 src: img.getAttribute('src'),
                 width,
-                original: img.getAttribute("original")
-            })
+                isMapImg,
+                original: img.getAttribute("original"),
+            }
+            results.push(r)
 
         }
 
         return results
 
     };
+
+    extractVideoLinksFromHtml(html: string): string[] {
+        const dom = new JSDOM(html);
+        const document = dom.window.document;
+
+        const links: string[] = [];
+
+        const videoElements = Array.from(document.getElementsByTagName("video"));
+
+        videoElements.forEach(video => {
+            const videoSrc = video.getAttribute("src");
+            if (videoSrc) {
+                links.push(videoSrc);
+            }
+
+
+
+            const sourceElements = Array.from(video.getElementsByTagName("source"));
+            sourceElements.forEach(source => {
+                const src = source.getAttribute("src");
+                if (src) {
+                    links.push(src);
+                }
+            });
+        });
+
+        return links;
+    }
+
 
     async processImage(id: string) {
 
@@ -763,6 +859,12 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
             await this.videoRepo.startProccess(doc?.video as string, doc?.language as string)
         }
 
+        if (doc?.videos != undefined) {
+            for (let i = 0; i < doc?.videos.length; i++) {
+                await this.videoRepo.startProccess((doc?.videos[i] as string), doc?.language as string)
+            }
+        }
+
         await schaduler.cancel({
             name: `publishContent-${this.typeName}`,
             "data.id": id
@@ -773,10 +875,12 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
             type: this.typeName,
             id: options?.category || doc?._id
         }), {
+
             type: this.typeName,
             category: doc?.category as string,
             language: doc?.language as string,
-            customFunc: this.contentFunc
+            customFunc: this.contentFunc,
+            admin: doc?.author as Types.ObjectId
         })
 
         await this.findByIdAndUpdate(id, {
@@ -797,7 +901,7 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
             query['categoryLable'] = doc?.seo.categoryLable
         }
         await this.seoDraftRepo.findOneAndDelete(query)
-        
+
         await this.updateOne({
             _id: id
         }, {
@@ -819,8 +923,9 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
     async updateOne(query: FilterQuery<T>, data: UpdateQuery<T>, options?: QueryOptions<T> | undefined): Promise<any> {
         let res = await super.updateOne(query, data, options)
         var doc = await this.findOne(query)
-        if (doc != null)
-            await this.checkFileUses(doc._id.toString())
+        if (doc != null) {
+            // await this.checkFileUses(doc._id.toString())
+        }
         return res
     }
 
@@ -887,7 +992,8 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
                             type: this.typeName,
                             category: after?.category as string,
                             language: after?.language as string,
-                            customFunc: this.customFunc
+                            customFunc: this.customFunc,
+                            admin: after.author as Types.ObjectId
                         })
                     }
 
@@ -935,7 +1041,6 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
         }
     }
 
-    // public 
     async refreshVideoProccess(before: T, after: T) {
 
     }
@@ -965,7 +1070,7 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
             return null
         }
 
-        let domain = language.domain != undefined ? await this.domainRepo.findById(language.domain as string) : this.domainRepo.findOne({
+        let domain = language.domain != undefined ? await this.domainRepo.findById(language.domain as string) : await this.domainRepo.findOne({
             isDefault: true
         })
 
@@ -978,7 +1083,6 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
 
     }
 
-    // @addPublishLog
     async publishSubContent(id: Types.ObjectId, subId: Types.ObjectId) {
         try {
             let domain = await this.getContentDomian(id)
@@ -1045,6 +1149,81 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
         }
     }
 
+    async updateSubContentHTML(id: Types.ObjectId | string, subId: Types.ObjectId | string, extra: any, content: string) {
+        if (subId == undefined || subId == "") {
+            await this.updateOne({
+                _id: id
+            }, {
+                $set: {
+                    content
+                }
+            })
+        }
+        else {
+            await this.updateOne(
+                {
+                    _id: id,
+                    "contents._id": subId
+                },
+                {
+                    $set: {
+                        "contents.$.content": content
+                    }
+                }
+            )
+        }
+    }
+
+
+    async findSubContent(
+        doc: T,
+        subId: Types.ObjectId | string
+    ) {
+        if (!subId || subId == "") {
+            return doc.content;
+        }
+
+        const subContent = doc.contents?.find(
+            (item: any) => item._id?.toString() === subId.toString()
+        );
+        return subContent?.content;
+    }
+
+    async updateFAQAnswer(id: Types.ObjectId, subId: Types.ObjectId | string, answer: string) {
+        try {
+            await this.updateOne(
+                {
+                    _id: id,
+                    "commonQuestions._id": subId
+                },
+                {
+                    $set: {
+                        "commonQuestions.$.answer": answer
+                    }
+                }
+            )
+        } catch (error) {
+            throw error
+        }
+    }
+
+    async updateDocSummrary(id: Types.ObjectId, summary: string) {
+        try {
+            await this.updateOne(
+                {
+                    _id: id
+                },
+                {
+                    $set: {
+                        summary: summary
+                    }
+                }
+            )
+        } catch (error) {
+            throw error
+        }
+    }
+
     async publishCommentReply(commentId: Types.ObjectId, replyId: Types.ObjectId) {
 
         let fakeComment = await this.fakeCommentRepo.findById(commentId)
@@ -1073,11 +1252,25 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
                     language: doc.language as any,
                     adminReplied: fakeComment.replyAdmin,
                     reply: comment._id,
-                    status: "confirmed",
+                    status: fakeComment.status == "waiting" ? "proccessing" : fakeComment.status,
                     type: "comment",
-                    manual: true
+                    manual: true,
+                    manualId: commentId
                 } as any)
+                await this.fakeCommentRepo.updateOne({
+                    _id: commentId
+                }, {
+                    $set: {
+                        isPublished: true
+                    }
+                })
 
+                await this.contentPublishQueueRepo.findOneAndDelete({
+                    pageType: fakeComment.pageType,
+                    page: fakeComment.page,
+                    type: "commentReply",
+                    subId: fakeComment._id,
+                })
             }
         } catch (error) {
             throw error
@@ -1104,59 +1297,71 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
             level: 1,
             language: doc.language as any,
             userInfo: comment.userInfo,
-            status: "confirmed",
+            status: comment.status == "waiting" ? "proccessing" : comment.status,
             type: "comment",
-            manual: true
+            manual: true,
+            manualId: commentId
         } as any)
+        await this.fakeCommentRepo.updateOne({
+            _id: commentId
+        }, {
+            $set: {
+                isPublished: true,
+                publishAt: new Date()
+            }
+        })
 
-        if (comment.replyText != undefined && comment.replyAdmin != undefined && comment.replyPublishAt) {
-            let publishAt = comment.replyPublishAt
-            let cycle = null
+        if (comment.replyText != undefined && comment.replyAdmin != undefined) {
+            if (comment.replyPublishAt) {
+                let publishAt = comment.replyPublishAt
+                let cycle = null
 
-            if (comment.replyCycle != undefined) {
-                cycle = await this.publishCycleRepo.findById(comment.replyCycle as Types.ObjectId)
-                if (cycle != null) {
-                    let times = cycle.time.split(":")
-                    try {
-                        publishAt.setHours(parseInt(times[0]))
-                        publishAt.setMinutes(parseInt(times[1]))
-                    } catch (error) {
+                if (comment.replyCycle != undefined) {
+                    cycle = await this.publishCycleRepo.findById(comment.replyCycle as Types.ObjectId)
+                    if (cycle != null) {
+                        let times = cycle.time.split(":")
+                        try {
+                            publishAt.setHours(parseInt(times[0]))
+                            publishAt.setMinutes(parseInt(times[1]))
+                        } catch (error) {
+
+                        }
 
                     }
-
                 }
-            }
-            schaduler.schedule(publishAt, `publishCommentReply-${this.typeName}`, {
-                replyId: newCommnet._id,
-                commentId: commentId
-            })
+                schaduler.schedule(publishAt, `publishCommentReply-${this.typeName}`, {
+                    replyId: newCommnet._id,
+                    commentId: commentId
+                })
 
-            let content = `
+                let content = `
             <div>
                 ${comment.replyText}
             </div>
             `
-            await this.contentPublishQueueRepo.insert({
-                pageType: comment.pageType,
-                page: comment.page,
-                type: "commentReply",
-                subId: comment._id,
-                content,
-                contentLength: ArticleContentProccessor.getWordCount(content),
-                date: publishAt,
-                cycle: comment.cycle
-            } as any)
+                await this.contentPublishQueueRepo.insert({
+                    pageType: comment.pageType,
+                    page: comment.page,
+                    type: "commentReply",
+                    subId: comment._id,
+                    content,
+                    contentLength: ArticleContentProccessor.getWordCount(content),
+                    date: publishAt,
+                    cycle: comment.cycle
+                } as any)
 
+                await this.contentPublishQueueRepo.findOneAndDelete({
+                    pageType: comment.pageType,
+                    page: comment.page,
+                    type: "comment",
+                    subId: comment._id,
+                })
+            }
 
+            else {
+                await this.publishCommentReply(commentId, newCommnet._id)
+            }
         }
-
-        // if(comment.ad)
-
-
-        // if(doc == null || doc.comments == undefined || doc.comments.length == 0){
-        //     return
-        // }
-        // let comment = doc.comments[0]
 
 
     }
@@ -1248,6 +1453,28 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
         })
     }
 
+
+    extractContents(doc: BasePage): ContentsMap[] {
+        let data: ContentsMap[] = []
+        data.push({
+            text: doc.content || "",
+            extra: {}
+        })
+
+        let contents = doc.contents || []
+        for (let i = 0; i < contents.length; i++) {
+            data.push({
+                text: contents[i].content || "",
+                id: contents[i]._id,
+                extra: {
+                    status: contents[i].status,
+                    publishAt: contents[i].publishAt
+                }
+            })
+
+        }
+        return data
+    }
 
 
     async checkCommentUpdate(doc: BasePage) {
@@ -1498,10 +1725,20 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
         try {
             var doc = await this.findOne(query)
 
+            if (document.video) {
+                await this.videoRepo.updateOne({
+                    _id: document.video
+                }, {
+                    $set: {
+                        page: doc?._id,
+                        locked: true,
+                        pageType: this.collection.modelName
+                    }
+                })
+            }
 
-            //replace
-            await this.deleteById(doc?._id)
             document._id = doc?._id
+
             if (doc?.isPublished) {
                 if (document.isPublished) {
                     document.publishDate = doc.publishDate
@@ -1509,27 +1746,42 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
             }
             document.modifyDate = new Date()
 
-            var newDoc = await this.collection.create(document)
+            document.imageConfig = doc?.imageConfig
+
+            await this.collection.findOneAndReplace({
+                _id: doc?._id
+            }, document)
+
+            var newDoc: any = await this.collection.findOne({
+                _id: doc?._id
+            })
+            await this.updateContentVideos(newDoc)
+
             await this.refreshCache(query)
-
-
-            await this.checkFileUses(newDoc?._id.toString())
 
             if (doc?.isPublished) {
                 if (newDoc?.isPublished) {
-
-                    this.refreshImageProccess(doc, newDoc)
-
+                    await this.checkFileUses(doc?._id)
+                    setTimeout(async () => {
+                        try {
+                            await this.refreshImageProccess(doc as T, newDoc)
+                        } catch (error) {
+                            console.log("er refreshImageProccess")
+                        }
+                    }, 1000)
                     let d = this.contentRepo.checkForEdit({
                         id: newDoc._id.toHexString(),
-                        type: this.typeName
-                    }, newDoc.seo, {
+                        type: this.typeName,
+
+                    }, document.seo, {
                         type: this.typeName,
                         category: newDoc?.category as string,
                         language: newDoc?.language as string,
-                        customFunc: this.contentFunc
+                        customFunc: this.contentFunc,
+                        admin: newDoc?.author as Types.ObjectId
+
                     })
-                    this.updateOne({
+                    await this.updateOne({
                         _id: doc._id
                     }, {
                         $set: {
@@ -1537,7 +1789,23 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
                         }
                     })
 
-                    this.doOnPublish(newDoc?._id)
+                    newDoc = (await this.collection.findOne(query) as T)
+                    if (newDoc?.video != undefined)
+                        await this.videoRepo.startProccess(doc?.video as string, doc?.language as string)
+
+                    if (newDoc?.videos != undefined) {
+                        for (let i = 0; i < newDoc?.videos.length; i++) {
+                            await this.videoRepo.startProccess((newDoc?.videos[i] as string), doc?.language as string)
+                        }
+                    }
+
+                    setTimeout(async () => {
+                        try {
+                            await this.doOnPublish(newDoc?._id)
+                        } catch (error) {
+
+                        }
+                    }, 1000)
 
                 }
                 else {
@@ -1550,10 +1818,23 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
                         })
                     }
 
+
+                    setTimeout(async () => {
+                        try {
+
+                            await this.checkFileUses(newDoc?._id.toString())
+                        } catch (error) {
+                            console.log("")
+                        }
+                    }, 1000)
+
+
                 }
             }
             else {
                 if (newDoc?.isPublished) {
+
+                    await this.checkFileUses(doc?._id)
                     await this.publish(doc?._id, {
                         category: this.typeName == "category" ? (newDoc as any).catID : undefined
                     })
@@ -1570,6 +1851,16 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
                             publish: this.publish.bind(this)
                         })
                     }
+
+
+                    setTimeout(async () => {
+                        try {
+
+                            await this.checkFileUses(newDoc?._id.toString())
+                        } catch (error) {
+                            console.log("")
+                        }
+                    }, 1000)
                 }
 
             }
@@ -1606,6 +1897,8 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
             // }
             // return
         } catch (error) {
+            console.log("eeee")
+            console.log(error)
             throw error
         }
     }
@@ -1624,27 +1917,83 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
         }
     }
 
+
+
+    extractUrlsFromSrcset(srcset: string): string[] {
+        return srcset
+            .split(",")
+            .map(s => s.trim().split(/\s+/)[0])
+            .filter(Boolean);
+    }
+
+    isValidFileUrl(url: string): boolean {
+        if (!url) return false;
+        if (url === "#" || url.startsWith("#")) return false;
+        if (url.startsWith("javascript:")) return false;
+
+        // اگر فقط آدرس صفحه بدون فایل باشه
+        try {
+            const u = new URL(url, "https://dummy-base.com");
+            if (!u.pathname || u.pathname === "/") return false;
+        } catch {
+            return false;
+        }
+
+        // فقط پسوند فایل‌های رسانه‌ای
+        const mediaExt = /\.(jpg|jpeg|png|gif|webp|svg|mp4|webm|ogg|mp3|wav|m4a|flac)$/i;
+        if (mediaExt.test(url) || url.startsWith("data:")) return true;
+
+        return false;
+    }
+
+    extractFileLinks(html: string): string[] {
+        const dom = new JSDOM(html);
+        const { document } = dom.window;
+        const urls = new Set<string>();
+
+        // همه‌ی تگ‌هایی که attribute های src یا href دارند
+        const allElements = Array.from(document.querySelectorAll("*"));
+
+        allElements.forEach(el => {
+            // همه‌ی attribute های احتمالی
+            ["src", "href", "poster", "data-src", "data-href"].forEach(attr => {
+                const val = (el as HTMLElement).getAttribute(attr);
+                if (val) urls.add(val);
+            });
+
+            // srcset مخصوصاً برای <img> و <source>
+            const srcset = (el as HTMLElement).getAttribute("srcset");
+            if (srcset) {
+                this.extractUrlsFromSrcset(srcset).forEach(u => urls.add(u));
+            }
+
+            // inline style: background-image: url(...)
+            const style = (el as HTMLElement).getAttribute("style");
+            if (style) {
+                const regex = /url\(([^)]+)\)/ig;
+                let m;
+                while ((m = regex.exec(style)) !== null) {
+                    let u = m[1].trim().replace(/^['"]|['"]$/g, "");
+                    if (u) urls.add(u);
+                }
+            }
+        });
+
+        return Array.from(urls).filter(this.isValidFileUrl);
+    }
+
+
+
     public async doFindFiles(doc: T): Promise<string[]> {
         let files = doc?.fileUses || []
-        // doc.mainImage ? files.push(doc.mainImage) : true
-
-        // if (doc.files)
-        //     files.push(...doc?.files)
-
-        // if (doc.videos)
-        //     files.push(... (doc.videos.map((elem: any) => {
-        //         return elem.mainSrc
-        //     })) as string[])
 
         if (doc.video != undefined) {
             try {
                 const video = await this.videoRepo.findById(doc.video as string)
                 // let paths= 
                 if (video != null) {
-                    // console.log("sec", video?.src)
                     files.push(video?.src)
                     let otherPaths = video.result.map((p) => p.path)
-                    // console.log("otherPaths", otherPaths)
                     files.push(...otherPaths)
                 }
 
@@ -1663,6 +2012,15 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
 
             }
         }
+
+        let contents = this.fetchContents(doc)
+        for (let i = 0; i < contents.length; i++) {
+            files.push(... this.extractFileLinks(contents[i]))
+        }
+
+        files = files.filter(item => item !== undefined && item !== null);
+
+
         return files
     }
 
@@ -1672,6 +2030,7 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
         if (doc == null)
             return
         var files: string[] = await this.doFindFiles(doc)
+
         return this.fileUsesRepo.makeChangeFileUses(id, files, this.typeName)
     }
 
@@ -1680,7 +2039,7 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
             config.type = this.typeName
             config.customFunc = this.contentFunc
             const finaURL = await this.contentRepo.makeURL(url, isStatic, config)
-            // console.log("finaURL" , finaURL)
+            
             let q: any = {
                 url: finaURL
             }
@@ -1693,14 +2052,12 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
             return await this.contentRepo.isUrlExists(finaURL, id) || this.seoDraftRepo.isExists(q)
 
         } catch (error) {
-            // console.log(error)
             throw error
         }
     }
 
     public async findByIdAndUpdate(id: Types.ObjectId | string, queryData: UpdateQuery<T>): Promise<T | null> {
         try {
-            // if(queryData)
             var before = await this.findById(id, { fromDb: true })
             var res = await super.findByIdAndUpdate(id, queryData)
             var after = await this.collection.findById(id)
@@ -1729,7 +2086,8 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
                             type: this.typeName,
                             category: after?.category as string,
                             language: after?.language as string,
-                            customFunc: this.contentFunc
+                            customFunc: this.contentFunc,
+                            admin: after.author as Types.ObjectId
                         })
                     }
 
@@ -1788,311 +2146,507 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
 
     }
 
-
-    async proccessContentImages(content: string, domainImage: any, savePath: any, images: {
-        src: string | null;
-        width: string | null;
-        original: string | null;
-    }[], contentNumber?: number) {
-
+    async proccessContentImages(
+        content: string,
+        domainImage: any,
+        savePath: any,
+        images: {
+            src: string | null;
+            width: string | null;
+            original: string | null;
+            isMapImg?: boolean;
+        }[],
+        contentNumber?: number
+    ) {
         try {
-            for (let i = 0; i < images.length; i++) {
-
-                if (images[i].src == null) {
-                    continue
+            for (const img of images) {
+                if (!img.src || !img.width) continue;
+                try {
+                    content = await this.processSingleImage(content, img, domainImage, savePath, contentNumber);
+                } catch (error) {
+                    console.log("❌ Error processing image:", img.src, error);
                 }
-                if (images[i].width != null) {
-                    try {
-                        if (domainImage["nonConvert-Suffixs"].includes(path.extname(images[i].src || " ").substring(1))) {
+            }
 
-                            let res = await ImageProccessesor.resizeAndRename("temp/", images[i].original || images[i].src as string, {
-                                mobile: false,
-                                q: domainImage["compress-quality"] as number,
-                                suffixs: [path.extname(images[i].src || " ").substring(1)],
-                                x: parseInt(images[i].width as string),
-                                watermark: domainImage["watermark-config"]
-                            })
+            return content;
+        } catch (error) {
+            throw error;
+        }
+    }
 
-                            for (let z = 0; z < res.length; z++) {
-                                var destinationPath = res[z].split("/")
-                                let file = res[z]
-                                res[z] = await this.cdn.upload(
-                                    res[z],
-                                    (await getPathResolver("image", savePath.path, domainImage["image-addressing"], contentNumber)()) +
-                                    destinationPath[destinationPath.length - 1],
-                                )
+    private async processSingleImage(
+        content: string,
+        img: any,
+        domainImage: any,
+        savePath: any,
+        contentNumber?: number
+    ) {
+        const isNonConvert = domainImage["nonConvert-Suffixs"]
+            .includes(path.extname(img.src).substring(1));
+        
+        if(isNonConvert){
+            return content
+        }
+
+        const imageSuffix = isNonConvert
+            ? [path.extname(img.src).substring(1)]
+            : domainImage["in-content-image-result-Suffixs"];
+
+        const quality = isNonConvert
+            ? domainImage["in-content-compress-quality"]
+            : 100;
+
+        const watermark = domainImage["in-content-watermark"] ? domainImage["in-content-watermark-config"]: undefined 
+        
+ 
+        // 🖼 نسخه دسکتاپ
+        const resized = await ImageProccessesor.resizeAndRename("temp/", img.original || img.src, {
+            mobile: false,
+            q: quality,
+            suffixs: imageSuffix,
+            x: parseInt(img.width),
+            watermark ,
+            isMapImg: img.isMapImg
+        });
+
+        const uploaded = await this.uploadAndClean(resized, savePath, domainImage, contentNumber);
+
+        content = this.changeUrlSetting(content, {
+            mobile: false,
+            newSrc: uploaded,
+            src: img.src,
+            original: img.original
+        });
+
+        // 📱 نسخه موبایل
+        if (domainImage["make-phone-image"]) {
+            const mobileRes = await this.processForMobile(img, domainImage, savePath,watermark, contentNumber, imageSuffix);
+            content = this.changeUrlSetting(content, {
+                mobile: true,
+                newSrc: mobileRes,
+                src: img.src,
+                original: img.original
+            });
+        }
+
+        //
+
+        return content;
+    }
+
+    private async uploadAndClean(resizedFiles: string[], savePath: any, domainImage: any, contentNumber?: number) {
+        const uploaded: string[] = [];
+
+        for (const filePath of resizedFiles) {
+            const parts = filePath.split("/");
+            const destination = (await getPathResolver("image", savePath.path, domainImage["image-addressing"], contentNumber)())
+                + parts[parts.length - 1];
+
+            const uploadedUrl = await this.cdn.upload(filePath, destination);
+            uploaded.push(uploadedUrl);
+
+            try {
+                await DiskFileManager.removeFile(filePath);
+            } catch { }
+        }
+
+        return uploaded;
+    }
+
+    private async processForMobile(img: any, domainImage: any, savePath: any,watermark ?: any, contentNumber?: number, suffixs: string[] = []) {
+        const resized = await ImageProccessesor.resizeAndRename("temp/", img.original || img.src, {
+            mobile: true,
+            q: domainImage["compress-quality"],
+            suffixs,
+            x: Math.min(parseInt(img.width), domainImage['phone-width']),
+            watermark,
+            isMapImg: img.isMapImg
+        });
+
+        return this.uploadAndClean(resized, savePath, domainImage, contentNumber);
+    }
 
 
-                                try {
-                                    await DiskFileManager.removeFile(file)
-                                } catch (error) {
 
-                                }
+    async isMainImageChanged(config: ImageData, domainImageConfig: DomainImageConfig): Promise<{
+        imageRes?: ImageResult,
+        changed: boolean
+    }> {
+        try {
+            let query: any = {
+                source: config.source,
+                imageLocation: config.imageLocation,
+                // page: config.page
+            }
+            const imgRes = await this.imageResultRepo.findOne(query)
 
-                            }
+            if (
+                imgRes == null
+            ) {
+                if (config.imageLocation != "main") {
+                    return {
+                        changed: true
+                    }
+                }
+                const imageRes = await this.imageResultRepo.findOne({
+                    imageLocation: config.imageLocation,
+                    page: config.page
+                })
+                if (imageRes != null) {
+                    return {
+                        changed: true,
+                        imageRes
+                    }
+                }
+                return {
+                    changed: true,
+                }
+            }
 
+            if (imgRes.isDeleted == true) {
+                return {
+                    changed: false
+                }
+            }
 
-                            content = this.changeUrlSetting(content, {
-                                mobile: false,
-                                newSrc: res,
-                                src: images[i].src || "",
-                                original: images[i].original
-                            })
+            if (
+                imgRes.size != config.size ||
+                imgRes.resolution.width != config.resolution.width ||
+                imgRes.resolution.height != config.resolution.height
+            ) {
+                return {
+                    changed: true,
+                    imageRes: imgRes
+                }
+            }
 
-                            let mobileRes
-                            if (domainImage["make-phone-image"]) {
-                                mobileRes = await ImageProccessesor.resizeAndRename("temp/", images[i].original || images[i].src as string, {
-                                    mobile: true,
-                                    q: domainImage["compress-quality"] as number,
-                                    suffixs: [path.extname(images[i].src || " ").substring(1)],
-                                    x: Math.min(parseInt(images[i].width as string), domainImage['phone-width']),
-                                    watermark: domainImage["watermark-config"]
-                                })
-
-                                for (let z = 0; z < mobileRes.length; z++) {
-                                    var destinationPath = mobileRes[z].split("/")
-                                    let file = mobileRes[z]
-                                    mobileRes[z] = await this.cdn.upload(
-                                        mobileRes[z],
-                                        (await getPathResolver("image", savePath.path, domainImage["image-addressing"], contentNumber)()) +
-                                        destinationPath[destinationPath.length - 1],
-                                    )
-
-                                    try {
-                                        await DiskFileManager.removeFile(file)
-                                    } catch (error) {
-
-                                    }
-
-
-                                }
-
-                           
-
-                                content = this.changeUrlSetting(content, {
-                                    mobile: true,
-                                    newSrc: mobileRes,
-                                    src: images[i].src || "",
-                                    original: images[i].original
-                                })
-                            }
-
+            if (config.cropingData != undefined) {
+                if (imgRes.cropingData == undefined)
+                    return {
+                        changed: true,
+                        imageRes: imgRes
+                    }
+                for (const key in config.cropingData) {
+                    if (imgRes.cropingData[key] == undefined ||
+                        config.cropingData[key].x != imgRes.cropingData[key].x ||
+                        config.cropingData[key].y != imgRes.cropingData[key].y
+                    ) {
+                        return {
+                            changed: true,
+                            imageRes: imgRes
                         }
-
-                        else {
-                            let imageSuffix = domainImage["image-result-Suffixs"]
-                            let res = await ImageProccessesor.resizeAndRename("temp/", images[i].original || images[i].src as string, {
-                                mobile: false,
-                                q: domainImage["compress-quality"] as number,
-                                suffixs: imageSuffix,
-                                x: parseInt(images[i].width as string),
-                                watermark: domainImage["watermark-config"]
-                            })
-
-
-                            for (let z = 0; z < res.length; z++) {
-                                var destinationPath = res[z].split("/")
-                                let file = res[z]
-                                res[z] = await this.cdn.upload(
-                                    res[z],
-                                    (await getPathResolver("image", savePath.path, domainImage["image-addressing"], contentNumber)()) +
-                                    destinationPath[destinationPath.length - 1],
-                                )
-
-                                try {
-                                    await DiskFileManager.removeFile(file)
-                                } catch (error) {
-
-                                }
-                            }
-
-                           
-
-                            content = this.changeUrlSetting(content, {
-                                mobile: false,
-                                newSrc: res,
-                                src: images[i].src || "",
-                                original: images[i].original
-                            })
-
-                        
-
-
-                            let mobileRes
-                            if (domainImage["make-phone-image"]) {
-                                mobileRes = await ImageProccessesor.resizeAndRename("temp/", images[i].original || images[i].src as string, {
-                                    mobile: true,
-                                    q: domainImage["compress-quality"] as number,
-                                    suffixs: imageSuffix,
-                                    x: Math.min(parseInt(images[i].width as string), domainImage['phone-width']),
-                                    watermark: domainImage["watermark-config"]
-                                })
-
-
-                                for (let z = 0; z < mobileRes.length; z++) {
-                                    var destinationPath = mobileRes[z].split("/")
-                                    let file = mobileRes[z]
-                                    mobileRes[z] = await this.cdn.upload(
-                                        mobileRes[z],
-                                        (await getPathResolver("image", savePath.path, domainImage["image-addressing"], contentNumber)()) +
-                                        destinationPath[destinationPath.length - 1],
-                                    )
-
-                                    try {
-                                        await DiskFileManager.removeFile(file)
-                                    } catch (error) {
-
-                                    }
-                                }
-
-                                content = this.changeUrlSetting(content, {
-                                    mobile: true,
-                                    newSrc: mobileRes,
-                                    src: images[i].src || "",
-                                    original: images[i].original
-                                })
-                            }
-
-                        }
-                    } catch (error) {
-                        console.log(error)
                     }
                 }
             }
 
-            return content
+
+            if (domainImageConfig.lastUpdate && imgRes.lastBuild < domainImageConfig.lastUpdate) {
+                return {
+                    changed: true,
+                    imageRes: imgRes
+                }
+            }
+
+            if (domainImageConfig["watermark-main"] && domainImageConfig["main-watermark-config"] != null
+                && imgRes.lastBuild < (domainImageConfig["main-watermark-config"] as WaterMark).lastUpdate
+            ) {
+                return {
+                    changed: true,
+                    imageRes: imgRes
+                }
+            }
+
+            return {
+                changed: false
+            }
         }
         catch (error) {
             throw error
         }
+
+    }
+
+    getMainRemakeInfo(domainImageConfig: DomainImageConfig) {
+        let result: any = {
+            "resultQuality": 100,
+            "resultTypes": domainImageConfig["main-image-result-Suffixs"]
+        }
+        if (domainImageConfig["main-remaked-compress"] && domainImageConfig["main-remaked-compress-quality"]) {
+            result["resultQuality"] = domainImageConfig["main-remaked-compress-quality"]
+        }
+        return result
+    }
+
+    async deleteMainImageSrc(src: string) {
+        try {
+            await this.cdn.findCdnFromUrl(src)
+            await this.cdn.removeFiles([src])
+        } catch (error) {
+            throw error
+        }
+    }
+
+    async compressMainImage(src: string, quality: number) {
+        try {
+            await this.cdn.findCdnFromUrl(src)
+
+            const file = await DiskFileManager.downloadFile(src)
+
+            await ImageProccessesor.compress(file, file, quality)
+
+            // await this.cdn.
+
+        } catch (error) {
+            return false
+        }
+    }
+
+    async deleteImageResultsIfPossibble(imgRes: ImageResult, pageId: Types.ObjectId) {
+        // this.fileUsesRepo.
+        try {
+            let canDelete = await this.fileUsesRepo.canDelete(imgRes.source, pageId)
+            if (canDelete) {
+                await this.cdn.findCdnFromUrl(imgRes.source)
+                await this.cdn.removeFiles([imgRes.source])
+            }
+            if (imgRes.results.length > 0) {
+                // await this.cdn.findCdnFromUrl(imgRes.results[0].src)
+                for (let i = 0; i < imgRes.results.length; i++) {
+                    await this.cdn.findCdnFromUrl(imgRes.results[i].src)
+                    await this.cdn.removeFiles([imgRes.results[i].src])
+                }
+            }
+        } catch (error) {
+            throw error
+        }
+    }
+
+    public async changeMainImages(doc: T,) {
+        try {
+            const domainImage = await this.getDomainImage(doc);
+            if (!domainImage) return;
+
+            const conf = await this.getCDNConfig(domainImage["upload-path"]);
+            if (!conf) return;
+
+            const canEdit = await this.canEditMainImage(doc, domainImage);
+
+            if (canEdit.changed == false) return;
+
+            const config = await this.getTemplateConfig(doc, domainImage);
+
+            const processedImages = await this.processImages(doc, config);
+
+            const finalImages = await this.applyWatermarkAndUpload(processedImages, domainImage, doc, conf);
+            let isDeleted = false
+            let isCompressed = false
+
+
+            if (domainImage["remove-main-image-src"]) {
+                isDeleted = true
+            }
+
+            else if (domainImage["compress-main"] == true && domainImage["main-compress-quality"] != undefined
+                && (doc.resolutionConfig.srcChanged || canEdit.imageRes?.isCompressed != true)
+            ) {
+                try {
+                    await this.compressMainImage(doc.resolutionConfig.source, domainImage["main-compress-quality"])
+                    isCompressed = true
+                } catch (error) {
+
+                }
+            }
+            if (isDeleted) {
+                try {
+                    await this.deleteMainImageSrc(doc.resolutionConfig.source)
+                }
+                catch (error) {
+                    isDeleted = false
+                }
+            }
+
+
+            let results = finalImages.map(function (elem, index) {
+
+                return {
+                    type: elem.name.split("$")[0],
+                    template: elem.name.split("$")[1],
+                    src: elem.path
+                }
+            })
+            if (canEdit.imageRes != undefined) {
+                if (canEdit.imageRes.source != doc.resolutionConfig.source && doc.resolutionConfig.deletePrevious == true) {
+                    await this.deleteImageResultsIfPossibble(canEdit.imageRes, doc._id)
+
+                    await this.imageResultRepo.deleteById(canEdit.imageRes._id)
+
+                    await this.imageResultRepo.insert({
+                        page: doc._id,
+                        pageType: this.typeName,
+                        source: doc.resolutionConfig.source,
+                        imageLocation: "main",
+                        isCompressed,
+                        isDeleted,
+                        size: (await DiskFileManager.urlStat(doc.resolutionConfig.source)).size,
+                        resolution: await ImageProccessesor.getDimensions(doc.resolutionConfig.source),
+                        cropingData: doc.resolutionConfig.conf,
+                        lastBuild: new Date(),
+                        results
+                    } as any);
+                }
+                else {
+                    await this.imageResultRepo.updateOne({
+                        _id: canEdit.imageRes?._id
+                    }, {
+                        $set: {
+                            isCompressed,
+                            pageType: this.typeName,
+                            isDeleted,
+                            size: (await DiskFileManager.urlStat(doc.resolutionConfig.source)).size,
+                            resolution: await ImageProccessesor.getDimensions(doc.resolutionConfig.source),
+                            cropingData: doc.resolutionConfig.conf,
+                            lastBuild: new Date(),
+                            results
+                        }
+                    })
+                }
+            }
+
+            else {
+                await this.imageResultRepo.insert({
+                    page: doc._id,
+                    source: doc.resolutionConfig.source,
+                    imageLocation: "main",
+                    isCompressed,
+                    pageType: this.typeName,
+                    isDeleted,
+                    size: (await DiskFileManager.urlStat(doc.resolutionConfig.source)).size,
+                    resolution: await ImageProccessesor.getDimensions(doc.resolutionConfig.source),
+                    cropingData: doc.resolutionConfig.conf,
+                    lastBuild: new Date(),
+                    results
+                    // results : ?
+                } as any);
+            }
+
+            await this.updateDocumentMainImage(doc, finalImages);
+
+        } catch (error) {
+            console.error("Error in changeMainImages:", error);
+        }
+    }
+
+    private async getDomainImage(doc: T) {
+        let lang = await this.langRepo.findById(doc.language as string);
+        let domain = lang?.domain
+            ? await this.domainRepo.findById(lang.domain as string)
+            : await this.domainRepo.findOne({ isDefault: true });
+
+        if (!domain) return null;
+
+        return this.domainImageRepo.findOne(
+            { domain: domain._id },
+            {},
+            [{ path: "main-watermark-config" }]
+        );
+    }
+
+    private async getCDNConfig(uploadPath: any) {
+        let conf = uploadPath ? await this.cdnRepo.findById(uploadPath.fileManager) : null;
+        if (!conf) {
+            conf = await this.cdnRepo.findOne({ isDefaultContent: true });
+        }
+        return conf;
+    }
+
+    private async canEditMainImage(doc: T, domainImage: any) {
+        return this.isMainImageChanged({
+            imageLocation: "main",
+            page: doc._id,
+            source: doc.resolutionConfig.source,
+            size: (await DiskFileManager.urlStat(doc.resolutionConfig.source)).size,
+            resolution: await ImageProccessesor.getDimensions(doc.resolutionConfig.source),
+            cropingData: doc.resolutionConfig.conf,
+        }, domainImage);
+    }
+
+    private async getTemplateConfig(doc: T, domainImage: DomainImageConfig) {
+        let config = await this.templateConfigRepo.findOne({ template: doc.template, language: doc.language });
+        if (!config) config = await this.templateConfigRepo.findOne({ template: doc.template });
+        if (!config) config = await this.templateConfigRepo.findOne({});
+
+        if (config?.imageConfig) {
+            const remakeInfo = this.getMainRemakeInfo(domainImage);
+            config.imageConfig = config.imageConfig.map((ic: any) => ({
+                ...ic,
+                compersionConfig: remakeInfo
+            }));
+        }
+        return config;
+    }
+
+    private async processImages(doc: T, config: any) {
+
+        return ImageProccessesor.proccessFromConfig(
+            ConfigService.getConfig("staticRoute"),
+            doc.resolutionConfig.source,
+            config?.imageConfig,
+            doc.resolutionConfig.conf
+        );
     }
 
 
-    public async changeMainImages(doc: T) {
-        try {
-            let lang = await this.langRepo.findById(doc.language as string)
+    private async applyWatermarkAndUpload(images: any[], domainImage: any, doc: T, conf: any) {
+        const cdn = new CDN_Manager();
+        if (conf) cdn.initFromConfig({
+            config: conf.config,
+            hostUrl: conf.hostUrl || "",
+            id: conf._id,
+            type: conf.type
+        });
 
-            if (lang?.domain) {
-                var domain = await this.domainRepo.findById(lang.domain as string)
-            }
-            else {
-                var domain = await this.domainRepo.findOne({
-                    isDefault: true
-                })
-            }
+        let tempDir = "";
+        if (domainImage["main-watermark-config"]) {
+            const tempName = Date.now().toString();
+            await DiskFileManager.mkdir("temp/", tempName);
+            tempDir = `temp/${tempName}/`;
+            const wm = domainImage["main-watermark-config"];
+            if (wm) {
 
-            let domainImage = await this.domainImageRepo.findOne({
-                domain: domain?._id
-            }, {}, [{
-                path: "watermark-config"
-            }])
-
-
-            if (domainImage == null) {
-                return
-            }
-
-            let savePath = domainImage?.["upload-path"]
-            var conf = await this.cdnRepo.findById(savePath.fileManager)
-
-
-            if (conf == null) {
-                var conf = await this.cdnRepo.findOne({
-                    isDefaultContent: true,
-                });
-            }
-
-            if (doc?.resolutionConfig) {
-                let config = await this.templateConfigRepo.findOne({
-                    template: doc.template,
-                    language: doc.language
-                })
-                if (config == null)
-                    config = await this.templateConfigRepo.findOne({
-                        template: doc.template
-                    })
-
-                if (config == null)
-                    config = await this.templateConfigRepo.findOne({
-                    })
-
-
-
-
-                let res = await ImageProccessesor.proccessFromConfig(ConfigService.getConfig("staticRoute"), doc.resolutionConfig.source
-                    , config?.imageConfig as any, doc.resolutionConfig.conf)
-
-
-
-                var cdn = new CDN_Manager()
-
-
-                if (conf != null)
-                    cdn.initFromConfig({
-                        config: conf.config,
-                        hostUrl: conf.hostUrl || "",
-                        id: conf._id,
-                        type: conf.type
-                    })
-
-                let c = [{
-                    name: "main",
-                    path: doc.resolutionConfig.source
-                }]
-
-                c.push(...res)
-
-                res = c
-
-                let temp_dir = ""
-                if (domainImage["watermark-main"]) {
-                    let temp_name = Date.now().toString()
-                    await DiskFileManager.mkdir("src/uploads/tmp/", temp_name)
-
-                    temp_dir = `src/uploads/tmp/${temp_name}/`
-                    let wm = await this.watermarkConfigRepo.findById(domainImage["main-watermark-config"] as string)
-                    if (wm != null) {
-                        for (let i = 0; i < res.length; i++) {
-                            res[i]["path"] = await ImageProccessesor.makeWatermarks(res[i]["path"], [...wm.configs], temp_dir)
-                        }
+                const results: any[] = [];
+                for (const img of images) {
+                    try {
+                        const newPath = await ImageProccessesor.makeWatermarks(img.path, [...wm.configs], tempDir);
+                        results.push({ ...img, path: newPath });
+                    } catch (err) {
+                        // results.push({ status: "rejected", reason: err });
                     }
                 }
+                images = results;
 
-
-                for (let i = 0; i < res.length; i++) {
-                    let name = path.basename(doc.resolutionConfig.source).split(".")[0]
-                    const finalPath = getUploadDestination(domainImage["upload-path"].path, domainImage["image-addressing"], doc.contentNumber) + res[i].name + "_" + name + path.extname(res[i].path)
-                    // res[i].path = await cdn.uploadMany(res[i].path, finalPath)
-                    let r = await cdn.uploadMany([
-                        {
-                            path: res[i].path,
-                            destination: finalPath
-                        }
-                    ], {
-                        rename: true
-                    })
-                    res[i].path = r[0]
-                }
-                if (temp_dir != "") {
-                    await DiskFileManager.removeFolder(temp_dir)
-                }
-          
-
-
-                await this.collection.updateOne({
-                    _id: doc._id
-                }, {
-                    $set: {
-                        imageConfig: res,
-                        imageProccessed: true
-                    },
-                })
             }
+        }
 
+        const finalImages = [];
+        const name = path.basename(doc.resolutionConfig.source).split(".")[0];
+
+        for (const img of images) {
+            const finalPath = getUploadDestination(domainImage["upload-path"].path, domainImage["image-addressing"], doc.contentNumber)
+                + img.name + "_" + name + path.extname(img.path);
+
+            const uploaded = await cdn.uploadMany([{ path: img.path, destination: finalPath }], { rename: true });
+            finalImages.push({ ...img, path: uploaded[0] });
         }
-        catch (error) {
-            console.log("error")
-        }
+
+        if (tempDir) await DiskFileManager.removeFolder(tempDir);
+        return finalImages;
+    }
+
+    private async updateDocumentMainImage(doc: T, images: any[]) {
+        await this.collection.updateOne(
+            { _id: doc._id },
+            { $set: { imageConfig: images, imageProccessed: true } }
+        );
     }
 
     public async proccessIncontentImages(
@@ -2115,9 +2669,10 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
         },
             {
 
-            }, [
+            }, 
+        [
             {
-                path: "watermark-config"
+                path: "in-content-watermark-config"
             }
         ])
 
@@ -2143,6 +2698,7 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
             return
 
 
+
         let contentsBefore = before ? this.fetchContents(before) : []
         let imagesBefore = []
         for (let i = 0; i < contentsBefore.length; i++) {
@@ -2157,19 +2713,18 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
 
         for (let i = 0; i < contents.length; i++) {
             let imagesAfter = await this.extractImageUrls(contents[i].content || "")
-
             let images: any[] = []
             for (let z = 0; z < imagesAfter.length; z++) {
-                let exists = false
+                let exists = false 
                 let newImage = true
                 for (let j = 0; j < imagesBefore.length; j++) {
-
                     if (imagesAfter[z].src == imagesBefore[j].src && newImage) {
                         newImage = false
                     }
+
                     if (imagesAfter[z].src == imagesBefore[j].src &&
                         imagesAfter[z].width != null && imagesBefore[j].width != null
-                        && imagesAfter[z].width != imagesBefore[j].width
+                        // && imagesAfter[z].width != imagesBefore[j].width
                     ) {
                         exists = true
                         if (imagesAfter[z].original != null) {
@@ -2177,32 +2732,35 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
                                 {
                                     original: imagesAfter[z].original,
                                     src: imagesAfter[z].original,
-                                    width: imagesAfter[z].width
+                                    width: imagesAfter[z].width,
+                                    isMapImg: imagesAfter[z].isMapImg
+
                                 }
                             )
                         }
                         break
                     }
                 }
-
                 if (exists == true) {
                     images.push({
                         src: imagesAfter[z].src,
-                        width: imagesAfter[z].width
+                        width: imagesAfter[z].width,
+                        isMapImg: imagesAfter[z].isMapImg
                     })
                 }
 
-                // if (newImage) {
-                images.push({
-                    src: imagesAfter[z].src,
-                    width: imagesAfter[z].width
-                })
-                // }
+                if (newImage) {
+                    images.push({
+                        src: imagesAfter[z].src,
+                        width: imagesAfter[z].width,
+                        isMapImg: imagesAfter[z].isMapImg
+                    })
+                }
 
 
 
             }
-            contents[i].content = await this.proccessContentImages(contents[i].content || "", domainImage, savePath, images)
+            contents[i].content = await this.proccessContentImages(contents[i].content || "", domainImage, savePath, images,after.contentNumber)
 
         }
 
@@ -2216,6 +2774,7 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
     }
 
 
+
     async proccessImageAfterPublish(doc: T) {
 
         try {
@@ -2224,7 +2783,7 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
             await this.checkFileUses(doc?._id.toString())
         } catch (error) {
 
-            console.log(error)
+            // console.log(error)
         }
 
     }
@@ -2236,7 +2795,6 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
         mobile: boolean,
         original?: string | null
     }) {
-        // console.log(content, options)
         let html =
             `
         <!DOCTYPE html>
@@ -2307,6 +2865,41 @@ export default class BasePageRepository<T extends BasePage> extends BaseReposito
         };
 
         return document.getElementById("content")?.innerHTML || ""
+    }
+
+    async insureVideoScreenshot(link: string, img: string) {
+        try {
+            let vid = await this.videoRepo.findOne({
+                $or: [
+                    {
+                        src: link,
+                    },
+                    {
+                        "result.path": link
+                    }
+                ],
+            })
+
+            if (vid == null) {
+                await this.videoRepo.insert({
+                    src: link,
+                    screenshots: [img]
+                } as any)
+            }
+
+            else if (vid.screenshots == undefined || vid.screenshots.length == 0) {
+                await this.videoRepo.updateOne({
+                    _id: vid._id
+                }, {
+                    $set: {
+                        screenshots: [img]
+                    }
+                })
+            }
+
+        } catch (error) {
+            throw error
+        }
     }
 
 }

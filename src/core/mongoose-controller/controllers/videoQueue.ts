@@ -52,7 +52,6 @@ export class VideoQueueController extends BaseController<VideoQueue>{
 
     async create(data: VideoQueue, ...params: any[]): Promise<Response> {
         try {
-            console.log(data)
             const doc = await this.repository.findOne({
                 $or: [
                     {

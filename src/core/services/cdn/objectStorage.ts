@@ -1231,10 +1231,15 @@ export class S3 implements FileMager {
             })
 
             let files: string[] = []
+
+            var filesCount = 0
             if (options?.files) {
                 for (let i = 0; i < options?.files.length; i++) {
                     if (!files.includes(options.files[i])) {
                         files.push(options.files[i])
+                        if(!options.files[i].endsWith("/")){
+                            filesCount += 1
+                        }
                     }
                 }
             }
@@ -1248,7 +1253,7 @@ export class S3 implements FileMager {
 
             await cache.set(cacheStr, JSON.stringify({
                 p: 0,
-                totalSize: options?.files?.length,
+                totalSize: filesCount,
                 uploaded: 0
             }))
             var result = await this.uploadFolder(folder + "/", directory, true, {
@@ -1256,7 +1261,8 @@ export class S3 implements FileMager {
                 path: folder + "/",
                 rename: options?.rename,
                 inBackground: true,
-                cacheStr: options?.cacheStr
+                cacheStr: options?.cacheStr,
+
             })
 
 
@@ -1642,12 +1648,15 @@ export class S3 implements FileMager {
                     name = tname[0] + "." + tname[1]
                 }
 
+                
+
 
                 dires[dires.length - 1] = dires[dires.length - 1].replace(basename, name)
                 var newName = dires.join("/")
                 file = `/${this.bucketName}/${file}`
 
                 await this.s3.copyObject(this.bucketName, newName, file, new minio.CopyConditions())
+          
 
                 if (file.endsWith(".png") || file.endsWith(".jpeg") || file.endsWith(".jpg") || file.endsWith(".webp") || file.endsWith(".mp4") || file.endsWith(".webm")) {
                     var filenames = file.split(".")

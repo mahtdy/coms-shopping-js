@@ -21,5 +21,3 @@ const CDN_LockedPathSchema = new Schema({
 })
 
 export const CDN_LockedPathModel = model<CDN_LockedPath>("cdn_locked_path", CDN_LockedPathSchema)
-
-//  CDN_LockedPathModel

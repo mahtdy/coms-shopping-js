@@ -1,4 +1,4 @@
-import { Body, Files, User } from "../../../decorators/parameters"
+import { Body, Files, Query, User } from "../../../decorators/parameters"
 import { Response } from "../../../controller"
 import BaseController, { ControllerOptions } from "../../controller"
 import Ticket, { TicketState } from "../../repositories/ticket/model"
@@ -10,16 +10,26 @@ import { QueryInfo } from "../../repository"
 import { UserInfo } from "../../auth/user/userAuthenticator"
 import FileManagerConfigRepository from "../../repositories/fileManagerConfig/repository"
 import ConfigService from "../../../services/config"
+import DepartmentRepository from "../../repositories/department/repository"
 // import { UserInfo } from 
 
 export class TicketController extends BaseController<Ticket>{
+    departmentRepo: DepartmentRepository
+
     constructor(baseRoute: string, repo: TicketRepository, options?: ControllerOptions) {
         super(baseRoute, repo, options)
+        this.departmentRepo = new DepartmentRepository()
+        // this.loginRequired = true
+        this.apiDoc = {
+            security: [{
+                BasicAuth: []
+            }]
+        }
     }
 
-
+    @Post("")
     create(
-        data: Ticket,
+        data: any,
         @User() user: UserInfo,
         @Body({
             destination: "file"
@@ -43,6 +53,10 @@ export class TicketController extends BaseController<Ticket>{
                             var conf = await cdnRepo.findOne({
                                 isDefaultContent: true
                             })
+                            var conf = await cdnRepo.findOne({
+                                isDefault: true
+                            })
+
                             if (conf == null) {
                                 return ConfigService.getConfig("TEMP_FILEMANAGER")
                             }
@@ -57,6 +71,7 @@ export class TicketController extends BaseController<Ticket>{
             isOptional: true
         }) files?: any,
     ): Promise<Response> {
+        data.messages = JSON.parse(data.messages as string)
         if (data.messages) {
             for (let i = 0; i < data.messages.length; i++) {
                 data.messages[i].from = 'user'
@@ -64,30 +79,53 @@ export class TicketController extends BaseController<Ticket>{
             }
             if (file && file != "") {
                 try {
-                   data.messages[0]['files'] = [{
-                    path: file,
-                    size: files[0].size / 1000
-                }]
+                    data.messages[0]['files'] = [{
+                        path: file,
+                        size: files[0].size / 1000
+                    }]
                 } catch (error) {
-    
+
                 }
             }
         }
         data.owner = "user"
         data.user = user.id
         data.starter = "user"
+        data.lastMessage = "user"
+
         return super.create(data)
     }
+
+    @Get("")
+    async getTicket(
+        @Query({
+            destination: "id",
+            schema: BaseController.id
+        }) id: string,
+        @User() user: UserInfo,
+    ) {
+        return this.findOne({
+            _id: id,
+            user: user.id
+        },)
+    }
+
+
 
     @Put("/close")
     async closeTicket(
         @Body({
             destination: "id",
             schema: BaseController.id
-        }) id: string): Promise<Response> {
-        return this.editById(id, {
+        }) id: string,
+        @User() user : UserInfo
+        ): Promise<Response> {
+        return this.editOne({
+            user : user.id,
+            _id : id
+        }, {
             $set: {
-                state: TicketState.closed,
+                state: "closed",
                 lastModified: new Date(),
                 stateNumber: 0,
                 closeDate: new Date()
@@ -95,18 +133,21 @@ export class TicketController extends BaseController<Ticket>{
         })
     }
 
-
     @Put("/open")
     async openTicket(
         @Body({
             destination: "id",
             schema: BaseController.id
-        }) id: string
+        }) id: string,
+        @User() user : UserInfo
     ): Promise<Response> {
-        return this.editById(id, {
+        return this.editOne({
+            user : user.id,
+            _id : id
+        }, {
             $set:
             {
-                state: TicketState.open,
+                state: "open",
                 stateNumber: 1,
                 lastModified: new Date()
             },
@@ -116,8 +157,6 @@ export class TicketController extends BaseController<Ticket>{
             }
         })
     }
-
-
 
     @Post("/message", {
         contentType: "multipart/form-data",
@@ -144,7 +183,7 @@ export class TicketController extends BaseController<Ticket>{
         @Files({
             config: {
                 name: "file",
-                maxCount: 1,
+                maxCount: 5,
                 types: ["jpg", "pdf", "png", "zip"]
             },
             schema: z.any().optional(),
@@ -176,7 +215,7 @@ export class TicketController extends BaseController<Ticket>{
 
         state?: any
     ): Promise<Response> {
-      
+
         if (messages) {
             for (let i = 0; i < messages.length; i++) {
                 messages[i].from = 'user'
@@ -189,7 +228,7 @@ export class TicketController extends BaseController<Ticket>{
                         size: files[0].size / 1000
                     }]
                 } catch (error) {
-    
+
                 }
             }
         }
@@ -208,7 +247,10 @@ export class TicketController extends BaseController<Ticket>{
         if (state) {
             query["$set"]["state"] = state
         }
-        return await this.editById(id, query)
+        return this.editOne({
+            user : user.id,
+            _id : id
+        }, query)
     }
 
     @Get("s/count")
@@ -225,7 +267,6 @@ export class TicketController extends BaseController<Ticket>{
         }
     }
 
-
     @Get("/search/list")
     public getSearchList(): Response {
         return {
@@ -236,23 +277,72 @@ export class TicketController extends BaseController<Ticket>{
         }
     }
 
+    @Get("/department/search")
+    async searchDepartment(
+    ): Promise<Response> {
+        try {
 
-    public async search(page: number, limit: number, reqQuery: any, @User() user: UserInfo): Promise<Response> {
+            return {
+                data: await this.departmentRepo.paginate({}, 20, 1),
+                status: 200
+            }
+        } catch (error) {
+            throw error
+        }
+    }
+
+    @Get("/search")
+    public async search(
+        @Query({
+            destination: "page",
+            schema: BaseController.page
+        }) page: number,
+        @Query({
+            destination: "limit",
+            schema: BaseController.limit
+        }) limit: number,
+        @Query({
+            schema: BaseController.search
+        }) reqQuery: any,
+        @User() user: UserInfo): Promise<Response> {
+
         var query = await this.searchHelper(reqQuery)
+        query["user"] = user.id
         return await this.paginate(page, limit, query, {
-            sort: this.getSort(reqQuery)
+            sort: this.getSort(reqQuery),
+            population: [{
+                path: "department",
+                select: ["name"]
+            }]
         }, user)
     }
 
-    paginate(page: number, limit: number, query?: FilterQuery<Ticket>, options?: QueryInfo | undefined, @User() user?: UserInfo): Promise<Response> {
-        if (user) {
-            if (!query) {
-                query = {}
+    @Post("/feedback")
+    async submitFeedback(
+        @Body({
+            schema: z.object({
+                id: BaseController.id,
+                feedback: z.string(),
+                feedbackStar: z.coerce.number().int().min(0).max(5).optional()
+            })
+        }) data: {
+            id: string,
+            feedback: string
+            feedbackStar: number
+        },
+        @User() user : UserInfo
+    ) { 
+        return this.editOne({
+            user : user.id,
+            _id : data.id
+        }, {
+            $set : {
+                feedback : data.feedback,
+                feedbackStar : data.feedbackStar
             }
-            query.user = user.id
-        }
-        return super.paginate(page, limit, query, options)
+        })
     }
+
 
     async moveFilesToCDN(): Promise<Response> {
         // console.log("here")
@@ -263,8 +353,14 @@ export class TicketController extends BaseController<Ticket>{
     }
 
     initApis(): void {
-        super.initApis()
-        this.addRouteWithMeta("/search", "get", this.search.bind(this), BaseController.searcheMeta)
+        this.addRouteWithMeta("", "post", this.create.bind(this), {
+            "1": {
+                index: 0,
+                source: "body",
+                schema: this.insertSchema
+            }
+        })
+
         this.addPreExecs("/message", "post", this.moveFilesToCDN.bind(this))
     }
 }
@@ -273,22 +369,13 @@ export class TicketController extends BaseController<Ticket>{
 
 var ticket = new TicketController("/ticket", new TicketRepository(), {
     insertSchema: z.object({
-        "notes": z.string(),
-        "importance": z.number().default(1),
+        "importance": BaseController.numberFromForm.default("1"),
         "subject": z.string(),
-        "owner": z.string().default("user"),
-        "user": BaseController.id,
         "department": BaseController.id,
-        "messages": z.array(z.object({
-            text: z.string(),
-            files: z.array(z.string())
-        }).omit({
-            "files": true
-        })),
-        "lastMessage": z.string().default("user"),
-        "starter": z.string().default("user")
+        "messages": z.string()
     }),
     searchFilters: {
+        _id: ["list", "eq"],
         department: ["eq"],
         state: ["eq", "list"],
         importance: ["eq", "lte", "gte", "list"],
@@ -296,6 +383,32 @@ var ticket = new TicketController("/ticket", new TicketRepository(), {
         ticketNumber: ["eq", "lte", "gte"],
         lastModified: ["gte", "lte"]
     },
+    population: [
+        {
+            path: "messages.admin",
+            select: ["name", "familyName"]
+        },
+        {
+            path: "messages.assignedAdmin",
+            select: ["name", "familyName"]
+        },
+        {
+            path: "messages.assigner",
+            select: ["name", "familyName"]
+        },
+        {
+            path: "department",
+            select: ["name"]
+        },
+        {
+            path: "messages.department",
+            select: ["name"]
+        },
+        {
+            path: "messages.assignerDepartment",
+            select: ["name"]
+        }
+    ],
     apiDoc: {
         security: [{
             BasicAuth: []

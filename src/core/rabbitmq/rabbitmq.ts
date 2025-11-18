@@ -20,6 +20,7 @@ export default class RabbitMQ implements Plugin {
         this.consumedQueues = []
         this.assertedQueues = []
     }
+    
 
     public static getInstance(url: string | amqplib.Options.Connect, socketOptions?: any): RabbitMQ {
         if (!RabbitMQ.instance) {

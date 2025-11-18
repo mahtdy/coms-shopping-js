@@ -21,7 +21,7 @@
 #     environment:
 #         MONGO_INITDB_DATABASE: 'admin'
 #         MONGO_INITDB_ROOT_USERNAME: 'cms-video'
-#         MONGO_INITDB_ROOT_PASSWORD: '}5K+4Hb?Da|{~TpH&%P1'
+#         MONGO_INITDB_ROOT_PASSWORD: '***********************'
 #     restart: on-failure
 #     command: mongod --port 27018
 #     ports:

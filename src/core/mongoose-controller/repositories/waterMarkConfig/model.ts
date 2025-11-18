@@ -44,6 +44,7 @@ export interface WaterMarkConfig {
 
 export default interface WaterMark extends Document {
     lable: string,
+    lastUpdate : Date,
     configs: WaterMarkConfig[],
     resultAngle?: number,
     resultQuality?: number,
@@ -62,7 +63,9 @@ export default interface WaterMark extends Document {
     grayscale: boolean,
     sepia: boolean,
     filter?: string,
-
+    
+    demoImg : string,
+    demoImgSmall : string,
 }
 
 export enum waterMarkType {
@@ -103,6 +106,11 @@ const WaterMarkSchema = new Schema({
     lable: {
         type: String,
         required: true
+    },
+    lastUpdate : {
+        type : Date,
+        required : true,
+        default : () => new Date()
     },
     configs: {
         type: [
@@ -294,6 +302,8 @@ const WaterMarkSchema = new Schema({
                     type: String,
                     required: false
                 }
+            } , {
+                _id : false
             })]
     },
     resultAngle: {
@@ -366,7 +376,7 @@ const WaterMarkSchema = new Schema({
     filter: {
         type: String,
         required: false
-    }
+    },
     // waterMarkPercent: {
     //     type: Number,
     //     required: function () {
@@ -378,6 +388,14 @@ const WaterMarkSchema = new Schema({
     //     max: 100
     // },
 
+    demoImg : {
+        type: String,
+        required: false
+    },
+    demoImgSmall : {
+        type : String,
+        required: false
+    },
 });
 
 

@@ -16,6 +16,9 @@ import DomainRedirectRepository from "../repositories/domainRedirect/repository"
 import GoogleApiTokenRepository from "../repositories/googleApiToken/repository";
 import SystemConfigRepository from "../repositories/system/repository";
 import axios from "axios";
+import FileManagerConfigRepository from "../repositories/fileManagerConfig/repository";
+import RandomGenarator from "../../random";
+import CDN_Manager from "../../services/fileManager";
 
 
 export class DomainController extends BaseController<Domain> {
@@ -25,7 +28,8 @@ export class DomainController extends BaseController<Domain> {
     adminRepo: AdminRepository<BaseAdmin>
     googleApiTokenRepo: GoogleApiTokenRepository
     systemConfigRepo: SystemConfigRepository
-
+    cdnConfigRepo : FileManagerConfigRepository
+    cdn: CDN_Manager
     constructor(baseRoute: string, repo: DomainRepository, options: ControllerOptions & {
         adminRepo: AdminRepository<BaseAdmin>
     }) {
@@ -38,6 +42,8 @@ export class DomainController extends BaseController<Domain> {
         this.repository.initDomainsNotification()
         this.googleApiTokenRepo = new GoogleApiTokenRepository()
         this.systemConfigRepo = new SystemConfigRepository()
+        this.cdnConfigRepo = new FileManagerConfigRepository()
+        this.cdn = new CDN_Manager()
     }
 
     async getConfig(
@@ -158,17 +164,17 @@ export class DomainController extends BaseController<Domain> {
     @Get("/tools")
     async getDomainToolsToken(
         @Query({
-            destination : "domain",
-            schema : BaseController.id
-        }) domainId : string
-    ) :Promise<Response>{
+            destination: "domain",
+            schema: BaseController.id
+        }) domainId: string
+    ): Promise<Response> {
         try {
             let tools = await this.googleApiTokenRepo.findAll({
-                domains : domainId
+                domains: domainId
             })
             return {
-                data : tools,
-                status : 200
+                data: tools,
+                status: 200
             }
         } catch (error) {
             throw error
@@ -177,7 +183,7 @@ export class DomainController extends BaseController<Domain> {
 
     async initNginx() {
         try {
-            // await this.nginx.init()
+            await this.nginx.init()
         } catch (error) {
             throw error
         }
@@ -625,9 +631,75 @@ export class DomainController extends BaseController<Domain> {
 
     }
 
+    @Post("/local-cdn")
+    async creteLocalCdn(
+        @Body({
+            destination: "id",
+            schema: BaseController.id
+        }) id: string
+    ): Promise<Response> {
+        try {
+            const domain = await this.repository.findById(id)
+            if(domain == null){
+                return {
+                    status : 404
+                }
+            }
+            if(domain.localCDN != undefined){
+                return {
+                    status : 400,
+                    message :  "فایل منیجر وجود دارد"
+                }
+            }
+            await this.addLocalCDN(domain)
+
+        } catch (error) {
+            throw error
+        }
+        return {
+            status : 200
+        }
+    }
+
+
+    async addLocalCDN(domain : Domain){
+
+        let localCDN = await this.cdnConfigRepo.getInertnal()
+        if (localCDN != null) {
+            try {
+                this.cdn.CDN_id = localCDN._id
+                await this.cdn.init()
+                let bucketName = RandomGenarator.generateHashStr(6)
+                await this.cdn.makeBucket(bucketName)
+                let insertData: any = JSON.parse(JSON.stringify(localCDN))
+                delete insertData["_id"]
+                insertData['config']['bucket'] = bucketName
+                insertData["filesInfo"] = {}
+                insertData["usedSize"] = 0
+                insertData.title = domain.domain
+                insertData.hostUrl = (domain.sslType == "none" ? "http://" : "https://") + domain.domain + "/files/"
+                let newCDN = await this.cdnConfigRepo.insert(insertData)
+
+                await this.repository.updateOne({
+                    _id: domain._id
+                }, {
+                    $set: {
+                        localCDN: newCDN._id,
+                        bucketName
+                    }
+                })
+
+                await this.nginx.init()
+
+            } catch (error) {
+                console.log(error)
+            }
+        }
+    }
+
 
     async search(page: number, limit: number, reqQuery: any, admin?: any, ...params: [...any]): Promise<Response> {
-      
+
         return super.search(page, limit, reqQuery, admin)
     }
 

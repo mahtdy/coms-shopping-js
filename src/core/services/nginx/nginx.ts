@@ -9,7 +9,6 @@ import ContentRepository from "../../mongoose-controller/repositories/content/re
 import ConfigService from "../config";
 import DomainRedirectRepository from "../../mongoose-controller/repositories/domainRedirect/repository";
 import { Types } from "mongoose";
-import { promises as fss } from 'fs';
 
 const writeFile = promisify(fs.writeFile)
 const mkdir = promisify(fs.mkdir)
@@ -21,7 +20,7 @@ export async function addDomainSSL(domain: string) {
     return new Promise((resolve, reject) => {
         exec(`certbot --nginx -d ${domain}`, (err, stdout, stderr) => {
             if (err) {
-                console.log("reject", err)
+                // console.log("reject", err)
                 reject()
             }
             else
@@ -81,22 +80,20 @@ export async function addNewDomainSSL(
         let nginx = new Nginx(new ContentRepository())
         await nginx.init()
     } catch (error) {
-        console.log(error)
+        // console.log(error)
     }
 }
 
 async function renewDomainSSL() {
     return new Promise((resolve, reject) => {
-        console.log("running")
         exec("certbot renew --nginx ", (err, stdout, stderr) => {
             if (err) {
-                console.log("reject", err)
+                // console.log("reject", err)
                 reject()
             }
             else
                 resolve(true)
 
-            console.log(stderr, stdout)
         })
     })
 
@@ -208,7 +205,6 @@ export default class Nginx {
                     let exists = await checkExists("/etc/letsencrypt/live/" + adminDomain.domain + "/")
                     if (!exists) {
                         try {
-                            console.log("adminDomain", adminDomain)
                             await addDomainSSL(adminDomain.domain)
                             exists = await checkExists("/etc/letsencrypt/live/" + adminDomain.domain + "/")
                             if (exists) {
@@ -243,11 +239,9 @@ export default class Nginx {
 
                 )
             }
-            // console.log("adminDomain", adminDomain?.domain)
 
             for (let i = 0; i < domains.length; i++) {
                 let redirects = await this.getRedirects(domains[i]._id)
-                // console.log(i, domains[i].domain, redirects.length)
 
 
                 let certificate
@@ -292,15 +286,12 @@ export default class Nginx {
                     }
                 }
 
-
-
                 resultConfig += await this.getNginxConfig(domains[i].domain, redirects, {
                     type: domains[i].sslType,
                     certificate
                 }, domains[i].isDefault && adminDomain == null, domains[i]._id, domains[i].bucketName)
             }
 
-            // console.log("otherDomainsID" , otherDomainsID)
 
             let otherDomains = await this.domainRepo.findAll({
                 _id: {
@@ -309,7 +300,6 @@ export default class Nginx {
             })
             for (let i = 0; i < otherDomains.length; i++) {
                 let redirects = await this.getRedirects(otherDomains[i]._id)
-                // console.log(i, otherDomains[i].domain, redirects.length)
                 let certificate
                 if (otherDomains[i].sslType == "certificate") {
                     certificate = await this.createSSLs(
@@ -362,7 +352,7 @@ export default class Nginx {
             await writeFile(ConfigService.getConfig("nginxPath") + "sites-enabled/default", resultConfig)
             exec("service nginx restart")
         } catch (error) {
-            console.log("error", error)
+            // console.log("error", error)
         }
     }
 
@@ -783,7 +773,14 @@ export default class Nginx {
         })
 
 
-
+        let front = `
+        location / {
+            client_max_body_size 1000M;
+            proxy_pass http://${ConfigService.getConfig("client")}:3000;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+         }
+         `
 
         if (r != null) {
             let domainLang = await this.langRepo.isExists({
@@ -793,9 +790,18 @@ export default class Nginx {
             let toDomain = await this.domainRepo.findById(r.to)
             if (toDomain != null && !domainLang) {
                 if (toDomain.sslType == "certificate" || toDomain.sslType == "interim")
-                    domainRedirect = `return 301 https://${toDomain.domain}$request_uri;`
+                    domainRedirect = `
+                    location / {
+                        return 301 https://${toDomain.domain}$request_uri;
+                    }
+                `
                 else
-                    domainRedirect = `return 301 http://${toDomain.domain}$request_uri;`
+                    domainRedirect = `
+                    location / {
+                        return 301 http://${toDomain.domain}$request_uri;
+                    }
+                    `
+                front = ""
             }
         }
 
@@ -865,15 +871,11 @@ export default class Nginx {
                 proxy_pass http://localhost:9000;
                 proxy_set_header Host $host;
                 proxy_set_header X-Real-IP $remote_addr;
-             }
+            }
 
 
-            location / {
-                client_max_body_size 1000M;
-                proxy_pass http://${ConfigService.getConfig("client")}:3000;
-                proxy_set_header Host $host;
-                proxy_set_header X-Real-IP $remote_addr;
-             }
+            ${front}
+             
  
 
             ${sslConfig
@@ -896,7 +898,7 @@ export default class Nginx {
             await addDomainSSL(domain)
             await this.init()
         } catch (error) {
-            console.log(error)
+            // console.log(error)
         }
     }
 
@@ -905,7 +907,7 @@ export default class Nginx {
             await renewDomainSSL()
             await this.init()
         } catch (error) {
-            console.log(error)
+            // console.log(error)
         }
     }
 
@@ -915,7 +917,7 @@ export default class Nginx {
             await unlink(ConfigService.getConfig("nginxPath") + "sites-enabled/" + domain + ".conf")
             exec("service nginx restart")
         } catch (error) {
-            console.log(error)
+            // console.log(error)
         }
     }
 

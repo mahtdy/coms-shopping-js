@@ -6,6 +6,7 @@ import basket from "./controllers/basket";
 import login from "./login";
 import order from "./controllers/order";
 import discount from "./controllers/discount";
+import product from "./controllers/product";
 
 export var userPart = new Part("/user", {
   controllers: [
@@ -13,6 +14,7 @@ export var userPart = new Part("/user", {
     ticket,
     basket,
     order,
+    product,
     discount,
     // content
   ],

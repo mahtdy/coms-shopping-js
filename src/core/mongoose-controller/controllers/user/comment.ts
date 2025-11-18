@@ -27,6 +27,7 @@ import geoip from "geoip-lite"
 import CommentBlockRepository from "../../repositories/commentBlock/repository";
 import { Route } from "../../../application";
 import NotificationTokenRepository from "../../repositories/notificationTokens/repository";
+import FakeCommentRepository from "../../repositories/fakeComment/repository";
 
 export class CommentController extends BaseController<Comment> {
     languageCommentRepo: LanguageCommentRepository
@@ -38,6 +39,7 @@ export class CommentController extends BaseController<Comment> {
     domainRepo: DomainRepository
     commentBlockRepo: CommentBlockRepository
     notificationTokenRepo: NotificationTokenRepository
+    fakeCommentRepo : FakeCommentRepository
 
     constructor(baseRoute: string, repo: CommentRepository, userModel: Model<BaseUser>, options?: ControllerOptions) {
         super(baseRoute, repo, options)
@@ -52,6 +54,7 @@ export class CommentController extends BaseController<Comment> {
         this.domainRepo = new DomainRepository()
         this.commentBlockRepo = new CommentBlockRepository()
         this.notificationTokenRepo = new NotificationTokenRepository()
+        this.fakeCommentRepo = new FakeCommentRepository()
     }
 
 
@@ -79,7 +82,6 @@ export class CommentController extends BaseController<Comment> {
                     if (!element.preExecs[i].meta) {
                         var name = element.preExecs[i].func.name.replace("bound ", "")
                         var confs = Reflect.getMetadata(name + this.constructor.name, this)
-                        // console.log(element.method,element.route,"confs" ,confs)
                         element.preExecs[i].meta = confs
                     }
                 }
@@ -132,7 +134,7 @@ export class CommentController extends BaseController<Comment> {
         }) hash: string
     ): Promise<Response> {
         try {
-
+            console.log(user , hash)
 
             let phone
             if (user == undefined) {
@@ -277,6 +279,16 @@ export class CommentController extends BaseController<Comment> {
                     replies: 1
                 }
             })
+
+            if(replyDoc != null && replyDoc.manualId != undefined){
+                await this.fakeCommentRepo.updateOne({
+                    _id : replyDoc.manualId
+                },{
+                    $inc: {
+                        replies: 1
+                    },
+                })
+            }
 
             await this.repository.updateOne({
                 _id: res.data["_id"]
@@ -447,6 +459,7 @@ export class CommentController extends BaseController<Comment> {
         if (cType != undefined) {
             query["type"] = cType
         }
+        console.log("query" , query)
 
         let res = await this.paginate(page, limit, query, {
             population: [

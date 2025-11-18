@@ -25,6 +25,8 @@ export class DiscountController extends BaseController<Discount> {
         this.orderRepo = new OrderRepository();
     }
 
+
+
     @Post("/generate-after-invoice")
     async generateDiscountAfterInvoice(
         @User() user: UserInfo,

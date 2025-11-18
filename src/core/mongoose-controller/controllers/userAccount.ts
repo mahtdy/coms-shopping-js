@@ -15,6 +15,7 @@ import ConfigService from "../../services/config";
 import CacheService from "../../cache";
 
 
+
 export default class AccountController extends BaseController<BaseUser>{
     cacheService: CacheService
     constructor(baseRoute: string, repo: UserRepository<BaseUser>, options?: ControllerOptions) {
@@ -35,6 +36,7 @@ export default class AccountController extends BaseController<BaseUser>{
     ): Promise<Response> {
         return this.findById(user.id || "", {
             projection: {
+                _id : 1,
                 name: 1,
                 family: 1,
                 email: 1,
@@ -43,12 +45,22 @@ export default class AccountController extends BaseController<BaseUser>{
                 address: 1,
                 image: 1,
                 isEmailRegistered: 1,
+                wallet: 1
             }
         })
     }
 
 
-    @Post("/towFactor/refresh")
+
+
+
+    @Post("/towFactor/refresh", {
+        apiDoc: {
+            security: [{
+                BasicAuth: []
+            }]
+        }
+    })
     async refreshTowFactor(
         @User() userInfo: UserInfo
     ): Promise<Response> {
@@ -92,7 +104,13 @@ export default class AccountController extends BaseController<BaseUser>{
     }
 
     // verify tow factor change
-    @Post("/towFactor/verify")
+    @Post("/towFactor/verify", {
+        apiDoc: {
+            security: [{
+                BasicAuth: []
+            }]
+        }
+    })
     async verifyTowFactor(
         @Body({
             destination: "code",
@@ -153,7 +171,13 @@ export default class AccountController extends BaseController<BaseUser>{
     }
 
 
-    @Post("/towFactor/enable")
+    @Post("/towFactor/enable", {
+        apiDoc: {
+            security: [{
+                BasicAuth: []
+            }]
+        }
+    })
     async enableTowFactor(
         @User() userInfo: UserInfo
     ): Promise<Response> {
@@ -189,7 +213,13 @@ export default class AccountController extends BaseController<BaseUser>{
     }
 
 
-    @Post("/towFactor/disable")
+    @Post("/towFactor/disable", {
+        apiDoc: {
+            security: [{
+                BasicAuth: []
+            }]
+        }
+    })
     async disableTowFactor(
         @User() userInfo: UserInfo,
         @Session() session: any,
@@ -203,7 +233,11 @@ export default class AccountController extends BaseController<BaseUser>{
         }) way?: "phone" | "email",
     ): Promise<Response> {
         try {
-            var user = await this.repository.findById(userInfo.id || "")
+            var user = await this.repository.findById(userInfo.id || "" ,{
+                projection : {
+                    password : 1
+                }
+            })
         } catch (error) {
             throw error
         }
@@ -321,7 +355,13 @@ export default class AccountController extends BaseController<BaseUser>{
         }
     }
 
-    @Post("/towFactor/disable/verify")
+    @Post("/towFactor/disable/verify", {
+        apiDoc: {
+            security: [{
+                BasicAuth: []
+            }]
+        }
+    })
     async verifyDisableTowFactor(
         @Body({ destination: "code", schema: BaseController.random }) code: number,
         @Session() session: any,
@@ -361,8 +401,20 @@ export default class AccountController extends BaseController<BaseUser>{
         }
     }
 
-    @Put("/password")
+
+
+    @Put("/password", {
+        apiDoc: {
+            security: [{
+                BasicAuth: []
+            }]
+        }
+    })
     async changePassword(
+        @Body({
+            destination : "oldPassword",
+            schema :  z.string().min(8)
+        }) oldPassword : string,
         @Body({
             destination: "password",
             schema: z.string().min(8)
@@ -370,11 +422,31 @@ export default class AccountController extends BaseController<BaseUser>{
         @User() userInfo: UserInfo
     ): Promise<Response> {
         try {
-            var user = await this.repository.findById(userInfo.id || "")
-            //user exists
+            var user = await this.repository.findOne({
+                _id : userInfo.id
+            }, {
+                projection: {
+                    password: 1,
+                    name: 1,
+                    family: 1,
+                    email: 1,
+                    phoneNumber: 1,
+                    changePassword : 1
+                },
+                fromDb: true
+            }
+            )
             if (user == null) {
                 return {
                     status: 404
+                }
+            }
+            
+            let isPasswordCorrect = await this.repository.comparePassword(user , oldPassword)
+            if(isPasswordCorrect != true){
+                return {
+                    status : 400,
+                    message : "رمز قبلی اشتباه است"
                 }
             }
             //change password (and hash)
@@ -388,13 +460,75 @@ export default class AccountController extends BaseController<BaseUser>{
         }
     }
 
-    @Put("/email")
+
+    @Post("/password/check", {
+        apiDoc: {
+            security: [{
+                BasicAuth: []
+            }]
+        }
+    })
+    async checkPassword(
+        @Body({
+            destination: "password",
+            schema: z.string().min(8)
+        }) password: string,
+        @User() userInfo: UserInfo
+    ): Promise<Response> {
+        try {
+            // var user = await this.repository.findById(userInfo.id || "")
+            var user = await this.repository.findOne({
+                _id : userInfo.id
+            }, {
+                projection: {
+                    password: 1,
+                    name: 1,
+                    family: 1,
+                    email: 1,
+                    phoneNumber: 1,
+                    changePassword : 1
+                },
+                fromDb: true
+            }
+            )
+            if (user == null) {
+                return {
+                    status: 404
+                }
+            }
+       
+            let isPasswordCorrect = await this.repository.comparePassword(user , password)
+            if(isPasswordCorrect != true){
+                return {
+                    status : 400,
+                    message : "رمز قبلی اشتباه است"
+                }
+            }
+            
+            return {
+                status : 200,
+                data: {}
+            }
+        } catch (error) {
+            throw error
+        }
+    }
+
+
+    @Put("/email", {
+        apiDoc: {
+            security: [{
+                BasicAuth: []
+            }]
+        }
+    })
     async editEmail(
         @Body({
             destination: "email",
             schema: BaseController.email
         }) email: string,
-        @User() userInfo: UserInfo
+        @User() userInfo: UserInfo,
+        @Session() session : any
     ): Promise<Response> {
         try {
             var user = await this.repository.findById(userInfo.id || "")
@@ -419,44 +553,24 @@ export default class AccountController extends BaseController<BaseUser>{
             }
             var query: any = {}
 
-            var hash = RandomGenarator.generateHashStr(20)
-            var template = ""
+            var code = RandomGenarator.randomNumber()
             var parameters: any = {}
-            var receptor = ""
 
-            // if user not have registered email 
-            if (!user.email || !user.isEmailRegistered) {
-                receptor = email
+            parameters["name"] = user.name
+            parameters["random"] = code
 
-                parameters["name"] = user.name
-                parameters["url"] = `${ConfigService.getConfig("siteAddress")}/#/UserEmailConfirm?hash=${hash}&id=${user._id}`
+            var template = "submitEmailUser"
 
-                template = "submitEmailUser"
-
-                query["email"] = email
-                query["isEmailRegistered"] = false
-            }
-
-            else {
-                receptor = user.email
-
-                parameters["name"] = user.name
-                parameters["email"] = email
-                parameters["url"] = `${ConfigService.getConfig("siteAddress")}/#/UserEmailConfirm?hash=${hash}&id=${user._id}`
-
-                template = "confirmEmailChangeUser"
-
-                query["newEmail"] = email
-            }
-
-            query["emailHash"] = hash
-
+            session['userNewRandom'] = code
+            session['userExpiresRandom'] = new Date(Date.now() + 120000)
+            session["updateEmail"] = email
+            
 
             try {
                 var result = await EmailMessager.send({
                     template,
                     parameters,
-                    receptor
+                    receptor : user.email
                 })
                 if (result == false) {
                     return {
@@ -464,9 +578,9 @@ export default class AccountController extends BaseController<BaseUser>{
                         message: "مشکلی در سرور رخ داده"
                     }
                 }
-                return this.editById(user._id, query, {
-                    ok: true
-                })
+                return {
+                    status : 200
+                }
 
             } catch (error) {
                 throw error
@@ -476,19 +590,23 @@ export default class AccountController extends BaseController<BaseUser>{
         }
     }
 
-    @Post("/email/confirm")
+    @Post("/email/confirm", {
+        apiDoc: {
+            security: [{
+                BasicAuth: []
+            }]
+        }
+    })
     async submitEmail(
+        @User() userInfo : UserInfo,
         @Body({
-            destination : "id",
-            schema : BaseController.id
-        }) id : string,
-        @Body({
-            destination : "hash",
-            schema :z.string()
-        }) hash : string
+            destination : "code",
+            schema : BaseController.random
+        }) random : number,
+        @Session() session :any
     ): Promise<Response> {
         try {
-            var user = await this.repository.findById(id)
+            var user = await this.repository.findById(userInfo.id)
         } catch (error) {
             throw error
         }
@@ -498,82 +616,44 @@ export default class AccountController extends BaseController<BaseUser>{
                 status : 404
             }
         }
+        var userRandom = session["userNewRandom"]
 
-        //check hash is correct
-        if (!user.email || user.emailHash != hash) {
+        if (!userRandom || new Date() > session["userExpiresRandom"]) {
             return {
-                status : 404
+                status : 400,
+                message : "سشن شما از بین رفته لطفا دوباره امتحان کنید"
             }
         }
+
+
         var query: any = {}
 
-        // check email is registered
-        if (user.isEmailRegistered) {
-            var hash = RandomGenarator.generateHashStr(20)
-            var template = ""
-            var parameters: any = {}
-            var receptor = ""
-
-            if (!user.newEmail) {
-                return {
-                    status : 400 ,
-                    message : "اطلاعات نامعتبر است",
-                }
+       
+        if (random != userRandom) {
+            return {
+                status : 400 ,
+                message : "کد وارد شده اشتباه است"
             }
-
-            receptor = user.newEmail
-            var hash = RandomGenarator.generateHashStr(20)
-
-            parameters["name"] = user.name
-            parameters["url"] = `${ConfigService.getConfig("siteAddress")}/#/UserEmailConfirm?hash=${hash}&id=${user._id}`
-
-            template = "submitEmailUser"
-
-            query["email"] = user.newEmail
-            query["isEmailRegistered"] = false
-            query["emailHash"] = hash
-
-
-
-
-            var result = await EmailMessager.send({
-                template,
-                parameters,
-                receptor
-            })
-
-            if (result == false) {
-                return {
-                    status : 500,
-                    message : "مشکلی در سرور رخ داده است"
-                }
-            }
-
-            return this.editById(user._id || "", {
-                $set: query,
-                $unset: {
-                    newEmail: 1
-                }
-            }, {
-                ok: true
-            })
-
         }
 
-        else {
-            return this.editById(user._id || "", {
-                $set: {
-                    isEmailRegistered: true
-                }
-            }, {
-                ok: true
-            })
+        session["confirmedEmail"] =  session["updateEmail"]
+
+        return {
+            status : 200,
+            data : {},
+            session
         }
 
     }
 
 
-    @Put("/phoneNumber")
+    @Put("/phoneNumber", {
+        apiDoc: {
+            security: [{
+                BasicAuth: []
+            }]
+        }
+    })
     async editPhoneNumber(
         @Body({
             destination : "phoneNumber",
@@ -585,7 +665,7 @@ export default class AccountController extends BaseController<BaseUser>{
 
         try {
             var user = await this.repository.findById(userInfo.id || "")
-            // user exists
+           
             if (user == null) {
                 return{
                     status : 404 ,
@@ -640,7 +720,13 @@ export default class AccountController extends BaseController<BaseUser>{
         }
     }
 
-    @Post("/phoneNumber/confirm")
+    @Post("/phoneNumber/confirm", {
+        apiDoc: {
+            security: [{
+                BasicAuth: []
+            }]
+        }
+    })
     async confirmPhoneNumber(
         @Body({
             destination : "random",
@@ -675,16 +761,75 @@ export default class AccountController extends BaseController<BaseUser>{
             }
         }
 
-        return this.editById(user._id, {
-            $set: {
-                phoneNumber: session["userNewPhoneNumber"]
-            }
-        }, {
-            ok: true
-        })
+        session["confirmedPhoneNumber"] =  session["userNewPhoneNumber"]
+
+        return {
+            status : 200,
+            data : {},
+            session
+        }
+
+        // return this.editById(user._id, {
+        //     $set: {
+        //         phoneNumber: session["userNewPhoneNumber"]
+        //     }
+        // }, {
+        //     ok: true
+        // })
     }
 
-    @Get("/email")
+
+   
+    @Put("/profile", {
+        apiDoc: {
+            security: [{
+                BasicAuth: []
+            }]
+        }
+    })
+    async profileSetting(
+        @Body({
+            schema : z.object({
+                phoneNumber : BaseController.phone,
+                email : BaseController.email,
+                name : z.string(),
+                family : z.string()
+                
+            }) 
+        }) data : any,
+        @Session() session : any,
+        @User() userInfo : UserInfo
+    ) {
+        try {
+            if(session["confirmedPhoneNumber"] ==undefined || session["confirmedPhoneNumber"] !=data.phone ){
+                delete data["phone"]
+            }
+            if(session["confirmedEmail"] ==undefined || session["confirmedEmail"] !=data.email){
+                delete data["email"]
+            }
+            else{
+                data["isEmailRegistered"] = true
+            }
+            console.log(session["confirmedPhoneNumber"] , data)
+            return await this.editById(userInfo.id , {
+                $set : data
+            },{
+                ok : true
+            })
+        } catch (error) {
+            throw error
+        }
+    }
+
+    
+
+    @Get("/email", {
+        apiDoc: {
+            security: [{
+                BasicAuth: []
+            }]
+        }
+    })
     async checkEmail(
         @Query({
             destination : "email",
@@ -701,7 +846,13 @@ export default class AccountController extends BaseController<BaseUser>{
     }
 
 
-    @Post("/chat/token")
+    @Post("/chat/token", {
+        apiDoc: {
+            security: [{
+                BasicAuth: []
+            }]
+        }
+    })
     async getChatToken(
         @User() userInfo : UserInfo
     ): Promise<Response> {

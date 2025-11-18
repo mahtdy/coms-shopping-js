@@ -142,6 +142,7 @@ export default class UserRepository<T extends BaseUser> extends BaseRepositorySe
 
 
     async increaseWallet(id : string | Types.ObjectId, amount : number , session :ClientSession) {
+        console.log("id" ,amount )
         return this.findByIdAndUpdate(id , {
             $inc : {
                 wallet : amount

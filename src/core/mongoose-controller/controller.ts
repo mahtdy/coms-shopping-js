@@ -17,6 +17,8 @@ let ejs = require("ejs");
 let pdf = require("html-pdf");
 import * as _ from 'lodash';
 
+import RandExp from 'randexp';
+
 import fs from "fs"
 
 export var paginationConfigs: PaginationConfig[] = []
@@ -190,7 +192,8 @@ const ExcelBaseConfig = {
 
 }
 
-const myRegex = /^[a-f\d]{24}$/i
+const IdRegex = /^[a-f\d]{24}$/ 
+const idGen = new RandExp(IdRegex)
 
 export default class BaseController<T extends Document> extends Controller {
     public repository: BaseRepositoryService<T>;
@@ -214,6 +217,8 @@ export default class BaseController<T extends Document> extends Controller {
     static totp = z.string().length(6).regex(/^[0-9]*$/)
 
     static booleanFromquery = z.enum(["true", "false"]).transform((data: "true" | "false") => data == "true")
+    static arrayFromForm = z.string().transform( (data : string) => JSON.parse(data) )
+    static numberFromForm = z.string().transform( (data : string) => Number(data) )
     static password = z.string().min(8).default("admin123456@")
     static date = z.string().regex(/^(?:(?:19|20)\d{2})-(?:(?:0[1-9]|1[0-2]))-(?:(?:0[1-9]|1\d|2[0-8])|(29|30)(?!(?:-02))|31(?=(?:-0[13578]|-1[02]))|29(?=-02-(?:19|20)(?:[02468][048]|[13579][26])))$/)
     static time = z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/)
@@ -223,11 +228,7 @@ export default class BaseController<T extends Document> extends Controller {
 
     static ip = z.string().regex(/^(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])|(((([0-9a-fA-F]){1,4})\:){7}([0-9a-fA-F]){1,4})$/)
 
-    static id = z.string()
-        .transform((val) => {
-            if (typeof val !== 'string') return undefined
-            return myRegex.test(val) ? val : undefined
-        })
+    static id = z.string().regex(/^[a-f\d]{24}$/i)
         
     static address = z.object({
         x: z.number(),
@@ -571,12 +572,14 @@ export default class BaseController<T extends Document> extends Controller {
     }
 
     async paginate(page: number, limit: number, query: FilterQuery<T> = {}, options?: QueryInfo, ...params: [...any]): Promise<Response> {
+        console.log("paginate")
         try {
             return {
                 status: 200,
                 data: await this.repository.paginate(query, limit, page, options)
             }
         } catch (error) {
+            console.log(error)
             throw error
         }
     }

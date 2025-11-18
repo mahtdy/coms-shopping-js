@@ -11,7 +11,8 @@ export default interface CategoryContent extends BasePage {
     mainImage ?: string,
     summary : string,
     content : string,
-    lable : string
+    module : string,
+    useage : number
 } 
 
 let schema = {...basePageSchema}
@@ -41,6 +42,11 @@ const categoryContentSchema = new Schema(Object.assign(schema,{
     module : {
         type:String,
         default : "categoryContent"
+    },
+    useage : {
+        type : Number,
+        required : true,
+        default : 0
     }
 })) 
 

@@ -52,6 +52,7 @@ import DomainImageConfigRepository from "../repositories/domainImageConfig/repos
 import { Types } from "mongoose";
 import { QueryInfo } from "../repository";
 import LanguageCommentRepository from "../repositories/languageComment/repository";
+
 // import { FileManager } from "./fileManager";
 // import { Route } from "src/core/application";
 
@@ -164,13 +165,14 @@ export var insertSchema = z.object({
   topDate: z.coerce.date().optional(),
   needProccess: z.boolean().default(false),
   commentStatus: z.boolean().default(false),
+  commentShow: z.boolean().default(false),
   commentImportant: z.boolean().default(false),
   publishDate: z.coerce.date().optional(),
   commonQuestions: z.array(
     z.object({
       question: z.string(),
       answer: z.string(),
-      publishAt : z.coerce.date().optional(),
+      publishAt: z.coerce.date().optional(),
       cycle: BaseController.id.optional(),
     })
   ),
@@ -190,6 +192,8 @@ export var insertSchema = z.object({
     .object({
       source: z.string().optional(),
       conf: BaseController.search.optional(),
+      deletePrevious: z.boolean().optional(),
+      srcChanged: z.boolean().optional()
     })
     .optional(),
   template: BaseController.id.optional(),
@@ -860,6 +864,7 @@ export class ArticleController extends BasePageController<Article> {
   ): Promise<Response> {
     try {
       var file = await VideoProccessor.screenshot(link, [time]);
+
       var conf = await this.cdnRepo.findOne({
         isDefaultContent: true,
       });
@@ -883,6 +888,14 @@ export class ArticleController extends BasePageController<Article> {
       } catch (error) {
 
       }
+
+      try {
+        await this.repository.insureVideoScreenshot(link, url)
+      } catch (error) {
+
+      }
+
+
       return {
         status: 200,
         data: url,
@@ -892,6 +905,7 @@ export class ArticleController extends BasePageController<Article> {
     }
     //
   }
+
 
 
   @Post("/draft/publish-queue")
@@ -942,7 +956,7 @@ export class ArticleController extends BasePageController<Article> {
         if (contentType === "video") {
           var staticPath: any = path;
         }
-        else if (contentType == "image"  && style != undefined ) {
+        else if (contentType == "image" && style != undefined) {
           var staticPath: any = path;
         }
         else
@@ -1604,6 +1618,7 @@ export class ArticleController extends BasePageController<Article> {
 
   }
 
+
   @Post("/validate")
   async validateCategory(
     @Body({
@@ -1760,7 +1775,162 @@ export class ArticleController extends BasePageController<Article> {
       domainImage = await this.domainImageRepo.findOne({
         domain: domain?._id
       })
-    
+
+    if (domainImage == null) {
+      return {
+        status: 400,
+        data: {
+          setDomain: true
+        }
+      }
+    }
+    let savePath = domainImage?.["upload-path"]
+    var conf = await this.cdnRepo.findById(savePath.fileManager)
+
+
+    if (conf == null) {
+      var conf = await this.cdnRepo.findOne({
+        isDefaultContent: true
+      });
+    }
+
+    if (conf == null)
+      return {
+        status: 400,
+        // data: { "address": pp }
+      };
+
+
+    this.cdn.initFromConfig({
+      config: conf.config,
+      hostUrl: conf.hostUrl || "",
+      id: conf._id,
+      type: conf.type,
+    });
+
+    // this.cdn.upload()
+
+    var destinationPath = files[0].path.split("/")
+
+    // console.log("image", savePath.path, domainImage["image-addressing"], contentNumber)
+    try {
+      return {
+        status: 200,
+        data: await this.cdn.upload(
+          files[0].path,
+          (await ArticleController.getPathResolver("image", savePath.path, domainImage["image-addressing"], contentNumber)()) +
+          destinationPath[destinationPath.length - 1],
+        ),
+      };
+    } catch (error) {
+      console.log(error)
+      throw error
+    }
+
+  }
+
+  @Post("/api/admin/content/image/replace", {
+    absolute: true,
+  })
+  async replcaeImage(
+    @Body({
+      schema: z.string(),
+      destination: "image"
+    }) image: string,
+    @Body({
+      schema: z.string(),
+      destination: "oldImage"
+    }) oldImage: string
+  ): Promise<Response> {
+    try {
+      await this.cdn.findCdnFromUrl(oldImage)
+      if (this.cdn.cdn?.baseDir == undefined) {
+        return {
+          status: 400
+        }
+      }
+
+      let baseDir = oldImage.replace(this.cdn.cdn?.baseDir, "")
+      image = await DiskFileManager.downloadFile(image)
+
+      await this.cdn.uploadMany([{
+        destination : baseDir,
+        path : image
+      }], {
+        rename : true
+      })
+
+
+    } catch (error) {
+      throw error
+    }
+    return {
+      status: 200
+    }
+  }
+
+  @Post("/api/admin/in-content/image/", {
+    contentType: "multipart/form-data",
+    absolute: true,
+  })
+  async proccessInContentImage(
+    @Files({
+      destination: "upload",
+      schema: z.any().optional(),
+      config: {
+        maxCount: 1,
+        name: "upload",
+        types: ["jpg", "jpeg", "webp", "png", ""],
+
+      },
+      mapToBody: true,
+    }) files: any[],
+    @Body({
+      destination: "language",
+      schema: BaseController.id
+        .default("61079639ab97fc52395831bf")
+    }) language: string,
+    @Body({
+      destination: "contentNumber",
+      schema: z.coerce.number().optional()
+    }) contentNumber: number,
+    @Body({
+      destination: "type",
+      schema: z.string().optional()
+    }) type?: string
+  ): Promise<Response> {
+    var path = files[0].path;
+    if (path == undefined) {
+      return {
+        status: 400,
+        message: "فایل ضمیمه نشده است",
+      };
+    }
+
+
+    let lang = await this.languageRepo.findById(language)
+
+    if (lang?.domain) {
+      var domain = await this.domainRepo.findById(lang.domain as string)
+    }
+    else {
+      var domain = await this.domainRepo.findOne({
+        isDefault: true
+      })
+    }
+    let domainImage: any = null
+    if (type != undefined) {
+      domainImage = await this.domainImageRepo.findOne({
+        domain: domain?._id,
+        type
+      })
+    }
+
+    if (domainImage == null)
+      domainImage = await this.domainImageRepo.findOne({
+        domain: domain?._id
+      })
+
     if (domainImage == null) {
       return {
         status: 400,
@@ -1815,6 +1985,120 @@ export class ArticleController extends BasePageController<Article> {
   }
 
 
+  @Post("/api/admin/content/main-image/", {
+    contentType: "multipart/form-data",
+    absolute: true,
+  })
+  async proccessMainImage(
+    @Files({
+      destination: "upload",
+      schema: z.any().optional(),
+      config: {
+        maxCount: 1,
+        name: "upload",
+        types: ["jpg", "jpeg", "webp", "png", ""],
+
+      },
+      mapToBody: true,
+    }) files: any[],
+    @Body({
+      destination: "language",
+      schema: BaseController.id
+        .default("61079639ab97fc52395831bf")
+    }) language: string,
+    @Body({
+      destination: "contentNumber",
+      schema: z.coerce.number().optional()
+    }) contentNumber: number,
+    @Body({
+      destination: "type",
+      schema: z.string().optional()
+    }) type?: string
+  ): Promise<Response> {
+    var path = files[0].path;
+    if (path == undefined) {
+      return {
+        status: 400,
+        message: "فایل ضمیمه نشده است",
+      };
+    }
+
+
+    let lang = await this.languageRepo.findById(language)
+
+    if (lang?.domain) {
+      var domain = await this.domainRepo.findById(lang.domain as string)
+    }
+    else {
+      var domain = await this.domainRepo.findOne({
+        isDefault: true
+      })
+    }
+    let domainImage: any = null
+    if (type != undefined) {
+      domainImage = await this.domainImageRepo.findOne({
+        domain: domain?._id,
+        type
+      })
+    }
+
+    if (domainImage == null)
+      domainImage = await this.domainImageRepo.findOne({
+        domain: domain?._id
+      })
+
+    if (domainImage == null) {
+      return {
+        status: 400,
+        data: {
+          setDomain: true
+        }
+      }
+    }
+    let savePath = domainImage?.["upload-path"]
+    var conf = await this.cdnRepo.findById(savePath.fileManager)
+
+
+    if (conf == null) {
+      var conf = await this.cdnRepo.findOne({
+        isDefaultContent: true
+      });
+    }
+
+    if (conf == null)
+      return {
+        status: 400,
+        // data: { "address": pp }
+      };
+
+
+    this.cdn.initFromConfig({
+      config: conf.config,
+      hostUrl: conf.hostUrl || "",
+      id: conf._id,
+      type: conf.type,
+    });
+
+    // this.cdn.upload()
+
+    var destinationPath = files[0].path.split("/")
+
+    // console.log("image", savePath.path, domainImage["image-addressing"], contentNumber)
+    try {
+      return {
+        status: 200,
+        data: await this.cdn.uploadWithState(
+          files[0].path,
+          (await ArticleController.getPathResolver("image", savePath.path, domainImage["image-addressing"], contentNumber)()) +
+          destinationPath[destinationPath.length - 1],
+        ),
+      };
+    } catch (error) {
+      console.log(error)
+      throw error
+    }
+
+  }
   @Post("/api/admin/content/image/lable", {
     contentType: "multipart/form-data",
     absolute: true,
@@ -2104,13 +2388,7 @@ export class ArticleController extends BasePageController<Article> {
     //         }
     //     }
     // })
-    this.addRouteWithMeta(
-      "s/search",
-      "get",
-      this.search.bind(this),
-      BaseController.searcheMeta
-    );
-    this.addRoute("s/search/list", "get", this.getSearchList.bind(this));
+
     this.addRoute("s/exel", "get", this.exportExcel.bind(this));
     this.addRoute("s/csv", "get", this.exportCSV.bind(this));
     this.addRoute("s/pdf", "get", this.exportPDF.bind(this));

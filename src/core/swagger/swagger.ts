@@ -23,7 +23,8 @@ interface SwaggerConfig {
         url: string
     }[],
     paths: any[]
-    components: any
+    components: any,
+    docExpansion? : string
 }
 
 

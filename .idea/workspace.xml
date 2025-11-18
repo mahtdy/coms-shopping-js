@@ -4,7 +4,116 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="33c1c6df-c729-4765-90c6-2feea21abe4f" name="Changes" comment="" />
+    <list default="true" id="33c1c6df-c729-4765-90c6-2feea21abe4f" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/src/apps/admin/controllers/categoryFeature.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/apps/admin/controllers/courier.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/apps/admin/controllers/package.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/apps/admin/controllers/productDiscount.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/apps/admin/controllers/productVariant.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/apps/user/controllers/courier.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/apps/user/controllers/product.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/apps/user/controllers/productDiscount.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/apps/user/controllers/warehouse.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/repositories/admin/categoryFeature/model.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/repositories/admin/categoryFeature/repository.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/repositories/admin/courier/model.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/repositories/admin/courier/repository.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/repositories/admin/inventoryHistory/model.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/repositories/admin/inventoryHistory/repository.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/repositories/admin/package/model.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/repositories/admin/package/repository.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/repositories/admin/productVariant/model.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/repositories/admin/productVariant/repository.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/repositories/admin/purchaseInvoice/model.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/repositories/admin/purchaseInvoice/repository.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/repositories/admin/purchaseInvoiceItem/model.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/repositories/admin/purchaseInvoiceItem/repository.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/repositories/admin/saleInvoice/model.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/repositories/admin/saleInvoice/repository.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/repositories/admin/saleInvoiceItem/model.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/repositories/admin/saleInvoiceItem/repository.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/repositories/admin/supplier/model.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/repositories/admin/supplier/repository.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/repositories/admin/warehouseTransfer/model.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/repositories/admin/warehouseTransfer/repository.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/repositories/productDiscount/model.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/repositories/productDiscount/repository.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server.zip" beforeDir="false" afterPath="$PROJECT_DIR$/server.zip" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/apps/admin/admin.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/apps/admin/admin.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/apps/admin/controllers/discount.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/apps/admin/controllers/discount.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/apps/admin/controllers/warehouse.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/apps/admin/controllers/warehouse.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/apps/user/controllers/discount.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/apps/user/controllers/discount.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/apps/user/user.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/apps/user/user.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/controllers/translator.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/controllers/translator.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/googleApi/googleApi.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/googleApi/googleApi.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/messaging/smsMessager.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/messaging/smsMessager.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/basePage/controller.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/basePage/controller.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/basePage/model.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/basePage/model.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/basePage/repository.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/basePage/repository.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/contentRegistry.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/contentRegistry.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/controller.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/controller.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/article.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/article.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/categoryContent.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/categoryContent.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/comment.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/comment.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/dashboard.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/dashboard.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/domain.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/domain.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/domainImageConfig.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/domainImageConfig.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/fakeComment.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/fakeComment.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/fileManager.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/fileManager.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/language.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/language.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/ticket.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/ticket.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/user/comment.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/user/comment.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/user/content.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/user/content.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/user/ticket.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/user/ticket.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/userAccount.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/userAccount.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/videoQueue.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/videoQueue.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/waterMarkComfig.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/controllers/waterMarkComfig.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/financeController.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/financeController.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/financeService.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/financeService.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/article/repository.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/article/repository.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/categoryContent/model.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/categoryContent/model.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/categoryContent/repository.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/categoryContent/repository.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/cdnLockedPath/model.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/cdnLockedPath/model.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/comment/model.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/comment/model.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/content/model.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/content/model.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/content/repository.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/content/repository.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/domainImageConfig/model.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/domainImageConfig/model.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/fakeComment/model.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/fakeComment/model.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/fakeComment/repository.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/fakeComment/repository.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/fileUses/repository.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/fileUses/repository.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/invoice/model.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/invoice/model.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/invoice/repository.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/invoice/repository.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/paymentConfig/model.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/paymentConfig/model.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/ticket/model.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/ticket/model.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/ticket/repository.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/ticket/repository.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/user/repository.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/user/repository.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/videoQueue/model.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/videoQueue/model.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/videoQueue/repository.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/videoQueue/repository.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/waterMarkConfig/model.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/repositories/waterMarkConfig/model.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/mongoose-controller/repository.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/mongoose-controller/repository.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/part/content.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/part/content.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/rabbitmq/rabbitmq.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/rabbitmq/rabbitmq.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/services/cdn/ftp.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/services/cdn/ftp.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/services/cdn/objectStorage.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/services/cdn/objectStorage.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/services/fileManager.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/services/fileManager.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/services/imageProccessing.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/services/imageProccessing.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/services/nginx/nginx.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/services/nginx/nginx.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/services/videoProccessing.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/services/videoProccessing.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/swagger/swagger.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/swagger/swagger.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/repositories/admin/basket/model.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/repositories/admin/basket/model.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/repositories/admin/discount/model.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/repositories/admin/discount/model.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/repositories/admin/discount/repository.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/repositories/admin/discount/repository.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/repositories/admin/product/repository.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/repositories/admin/product/repository.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/repositories/admin/productWarehouse/model.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/repositories/admin/productWarehouse/model.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/repositories/admin/productWarehouse/repository.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/repositories/admin/productWarehouse/repository.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/repositories/admin/warehouse/model.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/repositories/admin/warehouse/model.ts" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -28,8 +137,14 @@
   <component name="PropertiesComponent">{
   &quot;keyToString&quot;: {
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;WebServerToolWindowPanel.toolwindow.highlight.mappings&quot;: &quot;true&quot;,
+    &quot;WebServerToolWindowPanel.toolwindow.highlight.symlinks&quot;: &quot;true&quot;,
+    &quot;WebServerToolWindowPanel.toolwindow.show.date&quot;: &quot;false&quot;,
+    &quot;WebServerToolWindowPanel.toolwindow.show.permissions&quot;: &quot;false&quot;,
+    &quot;WebServerToolWindowPanel.toolwindow.show.size&quot;: &quot;false&quot;,
     &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;E:/linx/Projects/new-server/server&quot;,
+    &quot;last_opened_file_path&quot;: &quot;E:/linx/Projects/new-server/server/src/repositories/admin&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
@@ -40,6 +155,11 @@
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
 }</component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="E:\linx\Projects\new-server\server\src\repositories\admin" />
+    </key>
+  </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
@@ -72,7 +192,30 @@
       <workItem from="1751962783537" duration="19676000" />
       <workItem from="1752061633455" duration="3324000" />
       <workItem from="1752130988541" duration="15975000" />
-      <workItem from="1752566978783" duration="14408000" />
+      <workItem from="1752566978783" duration="32648000" />
+      <workItem from="1753785409011" duration="44331000" />
+      <workItem from="1754212713671" duration="14929000" />
+      <workItem from="1754291284347" duration="594000" />
+      <workItem from="1754296802821" duration="2805000" />
+      <workItem from="1754384910527" duration="10931000" />
+      <workItem from="1754737377148" duration="19221000" />
+      <workItem from="1755076714233" duration="4182000" />
+      <workItem from="1755416958438" duration="6345000" />
+      <workItem from="1756108958236" duration="1146000" />
+      <workItem from="1756210633657" duration="5128000" />
+      <workItem from="1756623334436" duration="612000" />
+      <workItem from="1756798209066" duration="29947000" />
+      <workItem from="1756996926785" duration="2648000" />
+      <workItem from="1757158997213" duration="3155000" />
+      <workItem from="1757323853468" duration="3493000" />
+      <workItem from="1757329722254" duration="60795000" />
+      <workItem from="1758442587782" duration="12684000" />
+      <workItem from="1759125741453" duration="46041000" />
+      <workItem from="1760345961806" duration="22199000" />
+      <workItem from="1760859947624" duration="6586000" />
+      <workItem from="1760945230703" duration="61478000" />
+      <workItem from="1761376846371" duration="65923000" />
+      <workItem from="1762846964769" duration="12241000" />
     </task>
     <servers />
   </component>
@@ -86,6 +229,11 @@
           <url>file://$PROJECT_DIR$/src/apps/admin/controllers/brand.ts</url>
           <line>29</line>
           <option name="timeStamp" value="1" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="javascript">
+          <url>file://$PROJECT_DIR$/src/apps/admin/controllers/productWarranty.ts</url>
+          <line>152</line>
+          <option name="timeStamp" value="2" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>

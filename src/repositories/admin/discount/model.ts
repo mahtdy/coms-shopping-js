@@ -26,11 +26,29 @@ export interface DiscountFilter {
 
 
 export default interface Discount extends BasePage {
-    // user?: string;
     disTitle: string;
     disType: "general" | "special";
     applyOnInvoice: boolean;
     autoApplyOnInvoice: boolean;
+
+    // اعمال روی محصولات / دسته / برند
+    applyOnProducts?: string[];
+    applyOnCategories?: string[];
+    applyOnBrands?: string[];
+
+    // مناسبتی / جشنواره / رویداد
+    eventType?: "sale" | "festival" | "specialDay";
+    eventName?: string;
+    eventStart?: Date;
+    eventEnd?: Date;
+    autoApplyOnEvent?: boolean;
+
+    // === جدید ===
+    variantFilter?: {
+        featureKey: string;  // مثل "color" یا "size"
+        featureValues?: string[]; // فقط این مقادیر
+    }[];
+
     disStart: Date;
     disEnd: Date;
     firstInvoiceOnly: boolean;
@@ -50,6 +68,7 @@ export default interface Discount extends BasePage {
     isActive: boolean;
     createdAt: Date;
 }
+
 
 
 const discountSchema = new Schema({

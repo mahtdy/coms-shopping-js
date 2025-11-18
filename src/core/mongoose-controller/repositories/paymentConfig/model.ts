@@ -15,7 +15,7 @@ export default interface PaymentConfig extends Document {
     invoice: Invoice | Types.ObjectId | string,
     type: "installment" | "simple",
 
-    payFor: "invoice" | "chargeAccount" | "loan" | "installment" |"penalty",
+    payFor: "invoice" | "chargeAccount" | "chashBack" | "withdrawal" | "loan" | "installment" |"penalty",
     replacedFrom: Types.ObjectId | string | PaymentConfig
     replacedBy: Types.ObjectId | string | PaymentConfig
 
@@ -126,7 +126,7 @@ export default interface PaymentConfig extends Document {
     payPort ?: Types.ObjectId | string | PaymentGateway,
 
     transaction?: Types.ObjectId,
-    payType?: "payGateWay" | "cash" | "transfer" | "check" | "pos" | "wallet",
+    payType?: "payGateWay" | "cash" | "chashBack" | "withdrawal" | "transfer" | "wallet" | "check" | "pos" ,
     info?: {
         interestRate?: number,
         havePenalty?: boolean,
@@ -217,9 +217,12 @@ const paymentConfigSchema = new Schema({
         enum: [
             "invoice",
             "chargeAccount",
+            "chashBack",
+            "withdrawal",
             "loan",
             "installment",
-            "penalty"
+            "penalty",
+            "chashBack"
         ],
         default: "invoice",
         required: true
@@ -611,6 +614,8 @@ const paymentConfigSchema = new Schema({
             "payGateWay",
             "cash",
             "transfer",
+            "chashBack",
+            "withdrawal",
             "check",
             "pos",
             "wallet"

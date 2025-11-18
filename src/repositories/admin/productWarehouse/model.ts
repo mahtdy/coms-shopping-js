@@ -1,59 +1,74 @@
 import { Document, model, Schema, Types } from "mongoose";
-import ProductWarehouse from "../productWarehouse/model";
-import productwarehouse from "../../../apps/admin/controllers/productwarehouse";
 import Product from "../product/model";
 import Warehouse from "../warehouse/model";
+import Variant from "../productVariant/model";
+const uniqueValidator = require("mongoose-unique-validator");
+import ProductWarehouse from "../productWarehouse/model";
+import productwarehouse from "../../../apps/admin/controllers/productwarehouse";
 import {date} from "zod";
 import {time} from "speakeasy";
-const uniqueValidator = require("mongoose-unique-validator");
 
 export default interface Productwarehouse extends Document {
-  product: string | Product;
   warehouse: string | Warehouse;
-  config: object;
-  lastUpdated: string;
-  price: number;
-  purchasePrice: number;
-  minStockThreshold: number;
+  variant: string | Variant;
+  product: string | Product;
   quantity: number;
+  variantPrice: number;
+  purchasePrice: number;
+  price: number;
+  minStockThreshold: number;
+  batchNumber: string;
+  lastUpdated: Date;
+  config: object;
   // cost: number;
 }
 
 const productwarehouseSchema = new Schema({
-  product: {
-    type: Types.ObjectId,
-    require: true,
-    ref: "product",
-  },
-
   warehouse: {
     type: Types.ObjectId,
     require: true,
     ref: "warehouse",
   },
-  config: {
-    type: Object,
-    require: false,
+  variant: {
+    type: Types.ObjectId,
+    required: false,
+    ref: "productVariant",
   },
-  lastUpdated: {
-    type: String,
-    require: false,
-  },
-  price: {
-    type: Number,
+  product: {
+    type: Types.ObjectId,
     require: true,
-  },
-  purchasePrice: {
-    type: Number,
-    require: true,
-  },
-  minStockThreshold: {
-    type: Number,
-    require: true,
+    ref: "product",
   },
   quantity: {
     type: Number,
-    require: true,
+    required: true,
+    min: 0,
+  },
+  variantPrice: {
+    type: Number,
+    required: true,
+  },
+  purchasePrice: {
+    type: Number,
+    required: true,
+  },
+  minStockThreshold: {
+    type: Number,
+    required: false,
+    default: 10,
+  },
+  batchNumber: {
+    type: String,
+    required: true,
+  },
+  lastUpdated: {
+    type: Date,
+    default: Date.now,
+  },
+
+  config: {
+    type: Object,
+    require: false,
   },
   // cost: {
   //   type: Number,

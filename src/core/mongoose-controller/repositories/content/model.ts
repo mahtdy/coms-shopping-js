@@ -19,6 +19,7 @@ interface Query {
 export default interface Content extends Document {
     originalUrl: string,
     url: string,
+    typeOfUrl: "withSign" | "withoutSign" | "custom"
     type: "article" | "category" | "author" | "product" | "static" | "landing",
     id: any,
     seoTitle: string,
@@ -42,13 +43,17 @@ export default interface Content extends Document {
         description: string,
         image?: string
     }[],
-    "canoncialAddress" ?: string,
-    "oldAddress" ?: string,
-    redirecturl ?: string,
-    redirect_status ?: string,
-    changefreq : "always" | "hourly" | "daily" | "weekly" | "monthly" | "yearly" | "never",
-    priority : number
-    
+    "canoncialAddress"?: string,
+    "oldAddress"?: string,
+    redirecturl?: string,
+    redirect_status?: string,
+    changefreq: "always" | "hourly" | "daily" | "weekly" | "monthly" | "yearly" | "never",
+    priority: number,
+    view: number
+    absoluteUrl: string,
+    robotsConfig: any
+
+
     // isTemplate: boolean,
     // dataType: "complex" | "simple" | "paginate",
     // paginateOptions?: any,
@@ -73,6 +78,11 @@ const contentSchema = new Schema(
             type: String,
             required: true,
             unique: true
+        },
+        typeOfUrl: {
+            type: String,
+            required: false,
+            enum: ["withSign", "withoutSign", "custom"]
         },
         type: {
             type: String,
@@ -102,7 +112,7 @@ const contentSchema = new Schema(
         mainKeyWord: {
             type: String,
             required: true,
-            default : () => {
+            default: () => {
                 return RandomGenarator.generateHashStr(30)
             },
             unique: true
@@ -177,35 +187,50 @@ const contentSchema = new Schema(
             })],
             required: true,
             default: []
-        },  
-        "canoncialAddress" : {
-            type : String,
-            required: false
         },
-        "oldAddress" : {
-            type: String,
-            required : false
-        },
-        redirecturl : {
+        "canoncialAddress": {
             type: String,
             required: false
         },
-        redirect_status : {
+        "oldAddress": {
+            type: String,
+            required: false
+        },
+        redirecturl: {
+            type: String,
+            required: false
+        },
+        redirect_status: {
             type: String,
             required: false
         },
 
-        changefreq : { // change frequensy for sitemap
-            type : String,
-            required : true,
-            default : "never"
+        changefreq: { // change frequensy for sitemap
+            type: String,
+            required: true,
+            default: "never"
         },
-        priority : {// priority for sitemap
-            type : Number,
-            required : true,
-            default : 0.5 
+        priority: {// priority for sitemap
+            type: Number,
+            required: true,
+            default: 0.5
+        },
+        view: {
+            type: Number,
+            required: true,
+            default: 0
+        },
+        absoluteUrl: {
+            type: String,
+            required: true,
+        },
+
+        robotsConfig: {
+            type: Object,
+            required: false
         }
-    })
+    }
+)
 
 
 export const ContentModel = model<Content>('content', contentSchema)

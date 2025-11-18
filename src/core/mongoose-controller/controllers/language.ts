@@ -342,6 +342,8 @@ export class LanguageController extends BaseController<Language> {
                                 let insertData: any = JSON.parse(JSON.stringify(localCDN))
                                 delete insertData["_id"]
                                 insertData['config']['bucket'] = bucketName
+                                insertData["filesInfo"] = {}
+                                insertData["usedSize"] = 0
                                 insertData.title = domain.domain
                                 insertData.hostUrl = (domain.sslType == "none" ? "http://" : "https://") + domain.domain + "/files/"
                                 let newCDN = await this.cdnConfigRepo.insert(insertData)

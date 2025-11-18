@@ -3,7 +3,7 @@ import BaseRepositoryService, { RepositoryConfigOptions } from "../../repository
 import SystemConfigRepository from "../system/repository"
 import ConfigService from "../../../services/config";
 import LinkTagRepository from "../linkTag/repository";
-import { FilterQuery } from "mongoose";
+import { FilterQuery, Types } from "mongoose";
 import { UpdateQuery } from "mongoose";
 import PublishQueueRepository from "../publishQueue/repository";
 import ContentQueueRepository from "../contentQueue/repository";
@@ -11,6 +11,7 @@ import DomainRepository from "../domain/repository";
 import RedirectRepository from "../redirect/repository";
 import Nginx from "../../../services/nginx/nginx";
 import LanguageRepository from "../language/repository";
+import KeywordRepository from "../keyword/repository";
 
 
 export interface InsertOptions {
@@ -19,7 +20,8 @@ export interface InsertOptions {
     type?: string,
     customFunc?: Function,
     domain?: string,
-    isDomain?: boolean
+    isDomain?: boolean,
+    admin?: Types.ObjectId
 }
 
 function syncNginx() {
@@ -48,6 +50,7 @@ export default class ContentRepository extends BaseRepositoryService<Content> {
     redirectRepo: RedirectRepository
     domainRepo: DomainRepository
     languageRepo: LanguageRepository
+    keywordRepo: KeywordRepository
     // nginx : Nginx
     constructor(options?: RepositoryConfigOptions) {
         super(ContentModel)
@@ -59,12 +62,16 @@ export default class ContentRepository extends BaseRepositoryService<Content> {
         this.redirectRepo = new RedirectRepository()
         this.domainRepo = new DomainRepository()
         this.nginx = new Nginx(this)
+        this.keywordRepo = new KeywordRepository()
+
+
     }
 
     // @checkForCategory()
     async insert(document: Content, config: InsertOptions = {
         type: "content"
     }): Promise<Content> {
+
         document.originalUrl = document.url
 
         document.category = config.category
@@ -108,6 +115,18 @@ export default class ContentRepository extends BaseRepositoryService<Content> {
                 throw new Error("کلمه‌کلیدی تکراری")
             }
         }
+
+        if(document.url.startsWith("/") ||document.url ==""){
+            let domain = await this.domainRepo.findOne({
+                isDefault: true
+            })
+            document.absoluteUrl = `https://${domain?.domain}${document.url}`
+        }
+        else{
+
+            document.absoluteUrl = `https://${document.url}`
+        }
+        
         try {
             var d = await super.insert(document)
 
@@ -145,12 +164,16 @@ export default class ContentRepository extends BaseRepositoryService<Content> {
             throw error
         }
 
-
+        if(content?.keyWords != undefined)
+            await this.keywordRepo.ensureKeywords(
+                content.keyWords,
+                config.admin as Types.ObjectId,
+                config.type as string,
+                document?.id)
         return d
     }
 
     async categoryPostCondition(contentData: any) {
-        // const contentPart = ContentPart.getInstance()
         await this.publishQueueRepo.deleteCategoryFromList(contentData.id, contentData.language, "content")
         this.contentQueueRepo.insert({
             data: {
@@ -191,12 +214,12 @@ export default class ContentRepository extends BaseRepositoryService<Content> {
         })
     }
 
+
     public async checkForEdit(query: FilterQuery<Content>, content: any, config: InsertOptions = {
         type: "content"
     }) {
         try {
             var document = await this.findOne(query)
-
             if (document == null)
                 return
 
@@ -204,9 +227,10 @@ export default class ContentRepository extends BaseRepositoryService<Content> {
                 if (key == "mainKeyWord" && content['mainKeyWord'] == document.mainKeyWord) {
                     delete content["mainKeyWord"]
                 }
+                // console.log("key" , key)
                 if (key == "url") {
-                    if (!document.isStatic
-                        && (content['url'] != document.url || document.category != config.category || document.language != config.language)) {
+                    if (!content.isStatic
+                        && (content['url'] != document.url || document.category != config.category || document.language != config.language || document.isStatic != content.isStatic)) {
                         let url
                         if (content['originalUrl'] == undefined) {
                             content['originalUrl'] = content['url']
@@ -227,12 +251,50 @@ export default class ContentRepository extends BaseRepositoryService<Content> {
                         }
 
                     }
-                    else {
+                    
+                    else if(content.isStatic != true) {
                         delete content["url"]
                     }
+                    
+                    if( content["url"] != undefined && content["url"] != "" && !content["url"].includes(".") && !content["url"].startsWith("/"))
+                    {
+                        content["url"] = "/" + content["url"]
+                    }
+
+
+                    if(content.isStatic == true){
+                        content["originalUrl"] = content["url"]
+                    }
+
                 }
             }
+
             content['language'] = config.language
+            if(content.url != undefined){
+                if(content.url.startsWith("/") ||content.url ==""){
+                    let domain = await this.domainRepo.findOne({
+                        isDefault: true
+                    })
+                    content.absoluteUrl = `https://${domain?.domain}${content.url}`
+                }
+                else{
+                    content.absoluteUrl = `https://${content.url}`
+                }
+            }
+            else {
+                if(document.url.startsWith("/") ||document.url ==""){
+                    let domain = await this.domainRepo.findOne({
+                        isDefault: true
+                    })
+                    content.absoluteUrl = `https://${domain?.domain}${document.url}`
+                }
+                else{
+        
+                    content.absoluteUrl = `https://${document.url}`
+                }
+            }
+            
+            
             var updateQuery: any = {
                 $set: content
             }
@@ -246,20 +308,40 @@ export default class ContentRepository extends BaseRepositoryService<Content> {
 
             await this.findByIdAndUpdate(document._id, updateQuery)
             var after = await this.findById(document._id)
-            // console.log(document.url , after?.url)
+
+
+            await this.ensureKeywords(content , config ,after)
+            // await this.keywordRepo.ensureKeywords(
+            //     content.keyWords,
+            //     config.admin as Types.ObjectId,
+            //     config?.type || "",
+            //     after?.id
+            // )
+
             if (after != null)
                 this.updateRedirects(document, after)
 
             return document
 
         } catch (error) {
+            console.log(error)
             throw error
         }
     }
 
+    async ensureKeywords(content: any, config: InsertOptions = {
+        type: "content"
+    } , after : Content | null ){
+        await this.keywordRepo.ensureKeywords(
+            content.keyWords,
+            config.admin as Types.ObjectId,
+            config?.type || "",
+            after?.id
+        )
+    }
+
     async updateRedirects(document: Content, afterDocument: Content) {
-        // console.log(document.url , afterDocument.url)
-        // console.log(afterDocument.redirecturl)'
+
 
         let domain
         try {
@@ -275,7 +357,6 @@ export default class ContentRepository extends BaseRepositoryService<Content> {
         } catch (error) {
 
         }
-
 
 
 
@@ -377,13 +458,19 @@ export default class ContentRepository extends BaseRepositoryService<Content> {
                 } as any)
             }
 
-
+            if(afterDocument.redirecturl == undefined){
+                const beforeRedirect = await this.redirectRepo.deleteMany({
+                    from : afterDocument.url
+                })
+                if(beforeRedirect != null){
+                    this.nginx.init()
+                }
+            }
 
             this.nginx.init()
         }
 
         else if (document.redirecturl) {
-            // console.log(361)
             let r = await this.redirectRepo.findOne({
                 $or: [
                     {
@@ -397,7 +484,6 @@ export default class ContentRepository extends BaseRepositoryService<Content> {
                     $ne: false
                 }
             })
-            // console.log(r)
 
             if (r != null) {
                 await this.redirectRepo.updateMany({
@@ -469,6 +555,16 @@ export default class ContentRepository extends BaseRepositoryService<Content> {
                 } as any)
                 this.nginx.init()
             }
+
+            if(afterDocument.redirecturl == undefined){
+                const beforeRedirect = await this.redirectRepo.deleteMany({
+                    from : afterDocument.url
+                })
+                if(beforeRedirect != null){
+                    this.nginx.init()
+                }
+            }
+           
         }
 
 
@@ -477,7 +573,6 @@ export default class ContentRepository extends BaseRepositoryService<Content> {
     async makeURL(url: string, isStatic: boolean = false, config: InsertOptions) {
         try {
             if (!isStatic) {
-
                 if (config.customFunc) {
                     url = await config.customFunc(url, config.category, config.language)
                 }

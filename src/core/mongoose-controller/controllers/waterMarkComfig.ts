@@ -37,21 +37,21 @@ var waterMarkConfig = z.object({
         "right",
         "left"
     ]).optional(),
-    lineSpacing: z.number().positive().optional(),
-    wordSpacing: z.number().positive().optional(),
-    position_x: z.number().positive(),
-    position_y: z.number().positive(),
-    x: z.coerce.number().int().positive().optional(),
-    y: z.coerce.number().int().positive().optional(),
-    transparency: z.coerce.number().int().positive().max(100).min(0).optional(),
-    fontSize: z.coerce.number().int().positive().min(1).optional(),
+    lineSpacing: z.number().min(0).optional(),
+    wordSpacing: z.number().min(0).optional(),
+    position_x: z.number().min(0),
+    position_y: z.number().min(0),
+    x: z.coerce.number().int().min(0).optional(),
+    y: z.coerce.number().int().min(0).optional(),
+    transparency: z.coerce.number().int().max(100).min(0).optional(),
+    fontSize: z.coerce.number().int().min(1).optional(),
     fontColor: z.string().optional(),
     fontName: z.string().optional(),
     waterMarkSizeType: z.enum([
         "relative",
         "fixed"
     ]).optional(),
-    waterMarkSize: z.number().positive().optional(),
+    waterMarkSize: z.number().min(0).optional(),
     italic: z.boolean().optional(),
     bold: z.boolean().optional(),
     underline: z.boolean().optional(),
@@ -73,8 +73,8 @@ var insertSchema = z.object({
     lable: z.string(),
     configs: z.array(waterMarkConfig).optional(),
     resultAngle: z.coerce.number().int().optional(),
-    resultQuality: z.coerce.number().int().positive().max(100).min(0).optional(),
-    resultSize: z.coerce.number().int().positive().optional(),
+    resultQuality: z.coerce.number().int().max(100).min(0).optional(),
+    resultSize: z.coerce.number().int().optional(),
     resultTypes: z.enum([
         "png",
         "jpg",
@@ -146,11 +146,35 @@ export class WaterMarkController extends BaseController<WaterMark>{
             configs.push(...data.configs)
             data.configs = configs
         }
+        var img : string = session['img']
         delete session['img']
         session['config'] = {}
 
         try {
             let res = await super.create(data)
+           
+
+           
+            img = await ImageProccessesor.refresh("src/uploads/tmp/", img, data)
+            let imgs = img.split("/")
+
+            let Dimention =  await ImageProccessesor.calculateDimentions(img,128,true)
+
+            const demoImgSmall : string= await ImageProccessesor.resize("src/uploads/filters/demo/",img,"jpg" ,Dimention.x , Dimention.y)
+
+            await DiskFileManager.move(img,`src/uploads/filters/demo/`)
+            img = `src/uploads/filters/demo/${imgs[imgs.length -1]}`
+
+          
+            await this.repository.updateOne({
+                _id : res.data._id
+            } , {
+                $set : {
+                    demoImg : img.replace("src",""),
+                    demoImgSmall: demoImgSmall.replace("src","")
+                }
+            })
+            
             res['session'] = session
             return res
         } catch (error) {
@@ -186,7 +210,6 @@ export class WaterMarkController extends BaseController<WaterMark>{
         }) files: any,
         @Session() session: any): Promise<Response> {
         try {
-            console.log("i", image)
             if (image) {
                 session['img'] = image
                 session['config'] = {}
@@ -250,10 +273,7 @@ export class WaterMarkController extends BaseController<WaterMark>{
             }
             session['refreshd_image'] = img
             var image = ConfigService.getConfig("serverurl") + "/" + img.substring(4)
-            // return new ApiResponse.SuccessResponse("succsess", {
-            //     image
-            // }).send(res)
-            // console.log(session)
+
 
             return {
                 status: 200,
@@ -278,11 +298,61 @@ export class WaterMarkController extends BaseController<WaterMark>{
         }) id: string,
         @Body({
             schema: insertSchema
-        }) watermark: any
+        }) watermark: any,
+        @Session() session: any,
     ): Promise<Response> {
-        return this.replaceOne({
-            _id: id
-        }, watermark)
+        try {
+            const exWatermark = await this.repository.findById(id)
+            const doc = await this.repository.updateOne({
+                _id: id
+            }, {
+                $set : watermark
+            })  
+
+            if(doc.modifiedCount != 0){
+                await this.repository.updateOne({
+                    _id : id
+                } , {
+                    $set : {
+                        lastUpdate : new Date()
+                    }
+                })
+            }
+            
+            var img : string = session['img']
+            img = await ImageProccessesor.refresh("src/uploads/tmp/", img, watermark)
+            let imgs = img.split("/")
+
+            let Dimention =  await ImageProccessesor.calculateDimentions(img,128,true)
+
+            const demoImgSmall : string= await ImageProccessesor.resize("src/uploads/filters/demo/",img,"jpg" ,Dimention.x , Dimention.y)
+
+            await DiskFileManager.move(img,`src/uploads/filters/demo/`)
+            img = `src/uploads/filters/demo/${imgs[imgs.length -1]}`
+
+
+            await this.repository.updateOne({
+                _id : id
+            } , {
+                $set : {
+                    demoImg : img.replace("src",""),
+                    demoImgSmall: demoImgSmall.replace("src","")
+                }
+            })
+            
+            try {
+                await DiskFileManager.removeFile( "src" + exWatermark?.demoImg)
+                await DiskFileManager.removeFile( "src" + exWatermark?.demoImgSmall)
+            } catch (error) {
+                
+            }
+            return {
+                status : 200
+            }
+        } catch (error) {
+            throw error   
+        }
+     
     }
 
 
@@ -414,6 +484,8 @@ export class WaterMarkController extends BaseController<WaterMark>{
     findById(@Query({ destination: "id", schema: BaseController.id }) id: string | Types.ObjectId, queryInfo?: QueryInfo | undefined): Promise<Response> {
         return super.findById(id)
     }
+
+
 
     initApis(): void {
         super.initApis()

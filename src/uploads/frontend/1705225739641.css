@@ -1,0 +1,103 @@
+.h_nav .mega .std_w{
+    flex-wrap: wrap;
+    justify-content: space-between;
+    background: #aabbc3;
+    background: linear-gradient(to right, #e3f4f8 2%, #aabbc3 82%);
+}
+.h_nav .mega .std_w .it a {
+    padding-left: 10px;
+    padding-right: 10px;
+    color: #000;
+}
+.h_nav .mega .std_w .it .mega_it3 {
+    background-color: #efefef;
+    border-radius: 5px;
+}
+.h_nav .mega .std_w .it .mega_it1{
+    display: flex;
+    gap: 10px;
+}
+.h_nav .mega .std_w .it .mega_it1 img{
+    box-shadow: 0 5px 15px 0 #ccc;
+    height: fit-content;
+    border-radius: 50%;
+}
+
+.h_nav .mega .std_w .it .mega_it3{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.h_nav .mega .std_w .it .mega_it4 img{
+    border-radius: 5px;
+}
+
+.h_nav .mega1 .std_w .it a:hover{
+    background-color: #fff;
+    border-radius: 5px;
+}
+
+.h_nav .mega .std_w .it .mega_it2,.h_nav .mega .std_w .it .mega_it2 span{
+    text-align: center;
+}
+.h_nav .mega .std_w .it .mega_it2 .pic{
+    width: 70px;
+    height: 70px;
+    margin: 0 auto 0;
+}
+.h_nav .mega .std_w .it .mega_it2 .pic img{
+    height: 100%;
+}
+.h_nav .mega .std_w .tex .tit{
+    font-size: 1.3rem;
+    font-weight: 700;
+}
+.h_nav .mega .std_w .tex span,.h_nav .mega .std_w p{
+    font-size: 12px;
+    margin-top: 6px;
+    display: block;
+    text-align: justify;
+    line-height: 2;
+    color: #696969;
+}
+.h_nav .mega1 .std_w .it i {
+    font-size: 23px;
+    color: #000;
+}
+
+.h_nav .mega1 .std_w .it{
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 15px;
+    max-width: 25%;
+}
+.h_nav .mega .std_w .it .h{
+   font-size: 1.4rem;
+   font-weight: 600;
+   color: #000;
+   padding-bottom: 0.5rem;
+    margin-bottom: 0.5rem;
+   cursor: default;
+   border-width: 3px;
+}
+.h_nav .mega > .std_w.bg_lr .bg{
+    content: "";
+    position: absolute;
+    width: inherit;
+    max-width: 30%;
+    background-repeat: no-repeat;
+    top: 0;
+    bottom: 0;
+    background-image: url(/img/mega-service.jpg);
+    height: auto;
+    background-size: contain;
+   
+}
+.rtl .h_nav .mega > .std_w.bg_lr .bg{
+    left: 0;
+    background-position: left;
+}
+.ltr .h_nav .mega > .std_w.bg_lr .bg{
+    right: 0;
+    background-position: right;
+}

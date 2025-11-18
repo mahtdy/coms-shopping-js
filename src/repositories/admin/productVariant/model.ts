@@ -1,27 +1,28 @@
 import { Document, model, Schema, Types } from "mongoose";
 
-export default interface CategoryFeature extends Document {
-    category: Types.ObjectId;
-    name: string; // مثال: "size" یا "color"
-    type: "select" | "text" | "number";
-    values?: { value: string; priceAdjustment?: number }[]; // اگر select باشه، لیست مقدارها و مقدار تغییر قیمت دلخواه برای هر مقدار
-    affectsPrice: boolean; // آیا این ویژگی روی قیمت اثر میگذارد؟
+export default interface ProductVariant extends Document {
+    product: Types.ObjectId;
+    sku: string;
+    features: { featureId?: Types.ObjectId; name: string; value: string; priceAdjustment?: number }[];
+    basePrice?: number;
+    active: boolean;
+    createdAt?: Date;
+    updatedAt?: Date;
 }
 
-const categoryFeatureSchema = new Schema({
-    category: { type: Types.ObjectId, required: true, ref: "category" },
-    name: { type: String, required: true },
-    type: { type: String, required: true, enum: ["select", "text", "number"] },
-    values: [
+const productVariantSchema = new Schema({
+    product: { type: Types.ObjectId, required: true, ref: "product" },
+    sku: { type: String, required: true, unique: true },
+    features: [
         {
+            featureId: { type: Types.ObjectId, ref: "categoryFeature", required: false },
+            name: { type: String, required: true },
             value: { type: String, required: true },
-            priceAdjustment: { type: Number, required: false, default: 0 } // می‌تواند مثبت یا منفی باشد
-        }
+            priceAdjustment: { type: Number, required: false, default: 0 },
+        },
     ],
-    affectsPrice: { type: Boolean, default: false },
-});
+    basePrice: { type: Number, required: false },
+    active: { type: Boolean, default: true },
+}, { timestamps: true });
 
-export const CategoryFeatureModel = model<CategoryFeature>(
-    "categoryFeature",
-    categoryFeatureSchema
-);
+export const ProductVariantModel = model<ProductVariant>("productVariant", productVariantSchema);

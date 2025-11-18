@@ -6,6 +6,7 @@ import CategoryContent, { CategoryContentModel } from "./model";
 
 
 export default class CategoryContentRepository extends BasePageRepository<CategoryContent>{
+    
     constructor(options? :RepositoryConfigOptions){
         
         super({

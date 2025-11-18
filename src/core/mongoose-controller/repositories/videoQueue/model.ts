@@ -1,5 +1,6 @@
 import { Schema, model, Document, Types } from "mongoose"
 import VideoConfig from "../videoConfig/model"
+import { BasePage } from "../../basePage/model"
 
 export interface ProccessResult extends Document {
     path: string,
@@ -35,8 +36,10 @@ export default interface VideoQueue extends Document {
     youtube?: object,
     youtube_url?: string,
     config? :string | VideoConfig,
-    screenshots? : string[]
+    screenshots? : string[],
 
+    page ?: BasePage | string | Types.ObjectId,
+    pageType ?: string
 
 
 }
@@ -184,6 +187,15 @@ const videoQueueSchema = new Schema({
 
     type : {
         type: String,
+        required : false
+    },
+    page : {
+        type : Types.ObjectId,
+        required : false,
+        refPath : "pageType"
+    },
+    pageType : {
+        type : String,
         required : false
     }
 })

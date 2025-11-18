@@ -4,6 +4,7 @@ import Invoice, { InvoiceModel } from "./model";
 import { ClientSession, Model, Types } from "mongoose";
 import Transaction from "../transaction/model";
 import PaymentConfigRepository from "../paymentConfig/repository";
+import ConfigService from "../../../services/config";
 
 
 export default class InvoiceRepository<T extends Invoice> extends BaseRepositoryService<T>{
@@ -27,6 +28,7 @@ export default class InvoiceRepository<T extends Invoice> extends BaseRepository
                     totalPaidPrice: amount,
                 }
             }, {
+                
                 // session,
                 runValidators : true
             })
@@ -314,10 +316,10 @@ export default class InvoiceRepository<T extends Invoice> extends BaseRepository
     async getFactorNumber(){
         let number = await this.systemConfigRepo.getConfigValue("invoice-number")
         if (number == undefined) {
-            await this.systemConfig.insert({
+            await this.systemConfigRepo.insert({
                 key: "invoice-number",
                 value: 1001,
-                lable: "jarahan",
+                lable: ConfigService.getConfig("projectName"),
                 type: "Number"
             } as any)
             number = 1000
@@ -331,8 +333,7 @@ export default class InvoiceRepository<T extends Invoice> extends BaseRepository
                 }
             })
         }
-
-        return number+1
+        return number + 1
     }
 
  

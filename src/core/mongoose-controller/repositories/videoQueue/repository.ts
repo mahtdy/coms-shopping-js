@@ -31,7 +31,6 @@ export default class VideoQueueRepository extends BaseRepositoryService<VideoQue
                 heartbeat: 0,
                 vhost: "vhost",
             }
-            
         );
 
         this.domainVideoRepo = new DomainVideoConfigRepository()
@@ -94,7 +93,7 @@ export default class VideoQueueRepository extends BaseRepositoryService<VideoQue
     async startProccess(id: string | Types.ObjectId, language: string) {
         try {
             const video = await this.findById(id)
-            if (video == null || video.status == VideoQueueStatus.done)
+            if (video == null || video.status == VideoQueueStatus.done ||video.status == VideoQueueStatus.inQueue )
                 return
 
             const channel = await this.rabbitmq.client?.createChannel()
@@ -133,7 +132,6 @@ export default class VideoQueueRepository extends BaseRepositoryService<VideoQue
                 })
 
 
-            console.log("q", q, domainVideo)
 
             if (domainVideo == null) {
                 return
@@ -224,14 +222,23 @@ export default class VideoQueueRepository extends BaseRepositoryService<VideoQue
             conf['video'] = video.src
             conf["type"] = type
 
-            console.log("cnf", conf)
             const res = channel?.sendToQueue("video", Buffer.from(JSON.stringify(
                 conf
             )), {
 
             })
 
+            
+
             await channel?.close()
+
+            await this.updateOne({
+                _id : id
+            } , {
+                $set : {
+                    status : VideoQueueStatus.inQueue
+                }
+            })
         }
         catch (error: any) {
             console.log("e", error.message)

@@ -14,17 +14,19 @@ export interface BasePage extends Document {
     id: Types.ObjectId,//
     title: string,//
     content?: string,
+    summary?: string
     contents?: Content[]
     language?: Language | string,
     category: Category | string,
     categories: Category[] | string[],
     ancestors?: Category[] | string[],
-    author?: Author | string,//
+    author?: Author | Types.ObjectId | string, //
     isPublished: boolean,
     publishDate?: Date,
     modifyDate: Date,
     insertDate: Date,
     commentStatus: boolean,
+    commentShow: boolean,
     commentImportant: boolean,
     isDraft: boolean,
     fileUses: string[],
@@ -43,8 +45,10 @@ export interface BasePage extends Document {
 
     resolutionConfig: {
         source: string,
-        conf: any
-    }, 
+        conf: any,
+        deletePrevious ?: boolean,
+        srcChanged ?: boolean
+    },
     imageConfig?: any
 
     videos?: VideoQueue[] | string[],
@@ -83,14 +87,24 @@ export interface BasePage extends Document {
     psiDesktop?: number,
     psiAvreage?: number,
 
-    contetnUpdateStart ?: Date
-    contetnUpdateEnd ?: Date
+    contetnUpdateStart?: Date
+    contetnUpdateEnd?: Date
 
-    commentUpdateStart ?: Date
-    commentUpdateEnd ?: Date
+    commentUpdateStart?: Date
+    commentUpdateEnd?: Date
 
-    commonQuestionUpdateStart ?: Date
-    commonQuestionUpdateEnd ?: Date
+    commonQuestionUpdateStart?: Date
+    commonQuestionUpdateEnd?: Date
+
+
+    inboundInternalLinks: number,
+    inboundExternalLinks: number,
+    internalLinks: number,
+    externalLinks: number,
+
+    isCoreWebVitalPassed : boolean
+
+    wordCount : number
 
 }
 
@@ -99,8 +113,8 @@ export interface CommonQuestion {
     question: string,
     answer: string,
     publishAt: Date,
-    cycle ?: Types.ObjectId,
-    _id : Types.ObjectId
+    cycle?: Types.ObjectId,
+    _id: Types.ObjectId
 }
 
 
@@ -119,12 +133,9 @@ export interface Content {
         reply?: Types.ObjectId
     }[],
     _id: Types.ObjectId,
-    visible ?: boolean
+    visible?: boolean,
+    tem_items ?: any
 }
-
-
-
-
 
 
 
@@ -208,10 +219,10 @@ export const contentSchema = {
         required: false
     },
 
-    cycle : {
+    cycle: {
         type: Types.ObjectId,
-        required : false ,
-        ref : "publish-cycle"
+        required: false,
+        ref: "publish-cycle"
     },
     locked: {
         type: Boolean,
@@ -237,7 +248,47 @@ export const contentSchema = {
                     required: false
                 }
             }),]
-    }
+    },
+
+    tem: {
+        type: String
+    },
+
+    doc_subtitle: {
+        type: String
+    },
+
+    doc_title: {
+        type: String
+    },
+    tem_items : {
+        type : Object,
+        required : false
+    },
+    tem_title:{ 
+        type : String
+    },
+    template_type :{
+        type : String
+    },
+    temid : {
+        type : String,
+        required : false
+    },
+    imgsrc : {
+        type : String
+    },
+    map_address:{
+        type : String
+    },
+    map_lat:{
+        type : Number
+    },
+    map_long:{
+        type : Number
+    },
+
+
 }
 
 
@@ -248,10 +299,16 @@ export var basePageSchema = {
         required: false,
         default: ""
     },
+    summary: {
+        type: String,
+        required: false,
+        default: ""
+    },
     contents: {
         type: [new Schema(contentSchema)],
         required: false
     },
+
     language: {
         type: Types.ObjectId,
         required: false,
@@ -286,9 +343,9 @@ export var basePageSchema = {
     modifyDate: {
         type: Date,
         required: true,
-        default:() =>{
+        default: () => {
             return new Date()
-        } 
+        }
     },
     publishDate: {
         type: Date,
@@ -305,6 +362,11 @@ export var basePageSchema = {
         type: Boolean,
         required: true,
         default: true
+    },
+    commentShow : {
+        type: Boolean,
+        required: true,
+        default: false
     },
     commentImportant: {
         type: Boolean,
@@ -340,12 +402,12 @@ export var basePageSchema = {
                 type: Date,
                 required: false
             },
-            cycle : {
+            cycle: {
                 type: Types.ObjectId,
-                required : false ,
-                ref : "publish-cycle"
+                required: false,
+                ref: "publish-cycle"
             },
-        
+
         })],
         required: false
     },
@@ -479,7 +541,7 @@ export var basePageSchema = {
             content: {
                 type: Types.ObjectId,
                 required: true,
-                refPath: "module"
+                ref: "article"
             },
             language: {
                 type: Types.ObjectId,
@@ -510,31 +572,31 @@ export var basePageSchema = {
     },
 
 
-    contetnUpdateStart : {
-        type : Date,
-        required : false
+    contetnUpdateStart: {
+        type: Date,
+        required: false
     },
-    contetnUpdateEnd : {
-        type : Date,
-        required : false
-    },
-
-    commentUpdateStart : {
-        type : Date,
-        required : false
-    },
-    commentUpdateEnd : {
-        type : Date,
-        required : false
+    contetnUpdateEnd: {
+        type: Date,
+        required: false
     },
 
-    commonQuestionUpdateStart : {
-        type : Date,
-        required : false
+    commentUpdateStart: {
+        type: Date,
+        required: false
     },
-    commonQuestionUpdateEnd : {
-        type : Date,
-        required : false
+    commentUpdateEnd: {
+        type: Date,
+        required: false
+    },
+
+    commonQuestionUpdateStart: {
+        type: Date,
+        required: false
+    },
+    commonQuestionUpdateEnd: {
+        type: Date,
+        required: false
     },
 
 
@@ -547,7 +609,16 @@ export var basePageSchema = {
             conf: {
                 type: Object,
                 required: false
-            }
+            },
+            // deletePrevious : {
+            //     type: Boolean,
+            //     required : false
+            // },
+            // srcChanged : {
+            //     type: Boolean,
+            //     required : false
+            // }
+            
         }, {
             _id: false
         }),
@@ -558,6 +629,38 @@ export var basePageSchema = {
         type: Object,
         required: false,
         default: {}
+    },
+
+
+
+    inboundInternalLinks: {
+        type: Number,
+        required: true,
+        default: 0
+    },
+    inboundExternalLinks: {
+        type: Number,
+        required: true,
+        default: 0
+    },
+    internalLinks: {
+        type: Number,
+        required: true,
+        default: 0
+    },
+    externalLinks: {
+        type: Number,
+        required: true,
+        default: 0
+    },
+    isCoreWebVitalPassed : {
+        type : Boolean,
+        required : true,
+        default : false
+    },
+    wordCount: {
+        type: Number,
+        required : false
     },
 
 }

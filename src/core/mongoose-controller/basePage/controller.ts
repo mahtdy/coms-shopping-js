@@ -35,31 +35,32 @@ export class BasePageController<T extends BasePage> extends BaseController<T>{
     }
 
 
-    
+
     create(data: T, @Admin() admin: AdminInfo): Promise<Response> {
         data.author = admin?._id
         return super.create(data)
     }
 
-    
+
     async publish(
         data: T,
         id: string,
         update: boolean,
-        @Admin() admin: AdminInfo
+        @Admin() admin: AdminInfo,
+        ...params: [...any]
     ): Promise<Response> {
         try {
 
             data.isDraft = false
             var draft = await this.repository.findOne({
-                author: admin._id,
+                // author: admin._id,
                 _id: id
             })
+
             if (draft == null) {
                 if (data.author == undefined)
                     data.author = admin._id
 
-                // console.log("insert f")
                 draft = await this.repository.insert(data)
                 return {
                     status: 200,
@@ -67,8 +68,9 @@ export class BasePageController<T extends BasePage> extends BaseController<T>{
                 }
             }
             else {
-                data.author = draft.author
-                
+
+                data.author = draft.author != null ? draft.author : admin._id
+
                 return {
                     status: 200,
                     data: await this.repository.replace({
@@ -79,6 +81,7 @@ export class BasePageController<T extends BasePage> extends BaseController<T>{
 
 
         } catch (error) {
+
             throw error
         }
     }
@@ -209,6 +212,7 @@ export class BasePageController<T extends BasePage> extends BaseController<T>{
             }
 
 
+
             if (draft != null) {
                 await this.repository.replace({
                     _id: draft._id
@@ -218,10 +222,9 @@ export class BasePageController<T extends BasePage> extends BaseController<T>{
                 draft = await this.repository.findById(draft._id)
             }
             else {
-                // console.log("insert d")
                 draft = await this.repository.insert(data)
-                // ftp.
             }
+
             return {
                 status: 200,
                 data: draft,
@@ -296,6 +299,10 @@ export class BasePageController<T extends BasePage> extends BaseController<T>{
 
             if (link.startsWith("/")) {
                 link = domain?.domain + link
+            }
+            else if (isStatic == true) {
+
+                link = domain?.domain + "/" + link
             }
             return {
                 status: 200,
@@ -481,6 +488,13 @@ export class BasePageController<T extends BasePage> extends BaseController<T>{
                 source: "query"
             }
         })
+        this.addRouteWithMeta(
+            "s/search",
+            "get",
+            this.search.bind(this),
+            BaseController.searcheMeta
+        );
+        this.addRoute("s/search/list", "get", this.getSearchList.bind(this));
     }
 
 }
@@ -501,6 +515,7 @@ var querySchema = z.object({
 
 export var seoSchema = z.object({
     "url": z.string(),
+    "typeOfUrl": z.enum(["withSign", "withoutSign", "custom"]).default("withSign"),
     "id": z.any(),
     "mainKeyWord": z.string(),
     "keyWords": z.array(z.string()).default([]),
@@ -523,7 +538,8 @@ export var seoSchema = z.object({
     "redirect_status": z.string().optional(),
 
     changefreq: z.enum(["always", "hourly", "daily", "weekly", "monthly", "yearly", "never"]).default("weekly"),
-    priority: z.number().min(0.0).max(1.0).default(0.5)
+    priority: z.number().min(0.0).max(1.0).default(0.5),
+    robotsConfig: BaseController.search.optional()
 
 })
 
@@ -569,6 +585,14 @@ export var basePageZod = z.object({
     viewMode: z.enum(["public", "forUsers", "private"]),
     viewCategory: BaseController.id.optional(),
     seo: seoSchema,
+    resolutionConfig: z
+        .object({
+            source: z.string().optional(),
+            conf: BaseController.search.optional(),
+            deletePrevious : z.boolean().optional(),
+            srcChanged: z.boolean().optional(),
+        })
+        .optional(),
     social: z.array(z.object({
         "socialName": z.enum(["twitter", "facebook"]),
         "title": z.string(),
@@ -588,5 +612,7 @@ export var basePageZod = z.object({
         language: BaseController.id
     })).default([]),
     content: z.string().default("string"),
-    contents: z.array(contentZod).optional()
+    contents: z.array(contentZod).optional(),
+
+    wordCount: z.coerce.number().int().min(0).default(0)
 })

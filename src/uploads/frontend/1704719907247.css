@@ -1,0 +1,65 @@
+.h_nav .abshari .std_w .it::before{
+    position: absolute;
+    font-family: 'FontAwesome';
+    content: '\f060';
+    opacity: 0;
+    transition: all linear .1s;
+    z-index: 1;
+    color: rgb(var(--first));
+    font-size: 13px;
+    opacity: 0;
+    visibility: hidden;
+
+}
+.h_nav .abshari .std_w .it:hover::before{
+    opacity: 1;
+    visibility: visible;
+    transition: all linear .1s;
+}
+.h_nav .abshari .std_w .lab{
+    padding: 2px 4px;
+}
+
+.h_nav .abshari .std_w .it a{
+    transition: all linear .1s;
+    display: flex;
+    align-items: center;
+}
+.h_nav .abshari .std_w .it:hover > a{
+   color:rgb(var(--first));
+}
+.h_nav .abshari .std_w .std_w{
+    opacity: 0;
+    position: absolute;
+    
+    visibility: hidden;
+    top: 0;
+}
+.rtl .h_nav .abshari .std_w .std_w{
+    right: 100%;
+}
+.ltr .h_nav .abshari .std_w .std_w{
+    left: 100%;
+}
+
+.rtl .h_nav .abshari .std_w .it:hover > a{
+    padding-right: 25px;
+    transition: all linear .1s;
+}
+.ltr .h_nav .abshari .std_w .it:hover a{
+    padding-left: 25px;
+    transition: all linear .1s;
+}
+.ltr .h_nav .abshari .std_w .it:hover::before{
+    left: 15px;
+}
+.rtl .h_nav .abshari .std_w .it::before{
+    right: 0;
+}
+.rtl .h_nav .abshari .std_w .it:hover::before{
+    right: 15px;
+}
+.ltr .h_nav .abshari .std_w .it::before{
+    left: 0;
+    content: '\f061';
+}

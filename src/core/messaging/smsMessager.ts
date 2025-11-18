@@ -201,7 +201,6 @@ export default class SmsMessager implements MyMessager {
         if (template == null) {
             return false
         }
-
         try {
             var config: SmsConfig | null = null;
             if (template.sendOTP) {
@@ -352,15 +351,17 @@ export default class SmsMessager implements MyMessager {
                     
                 }, function (error, response) {
 
-                    if (error) return reject(error);
+                    if (error){
+                        console.log(error)
+                        return reject(error);
+                    }
                     var responseData = JSON.parse(response.body)
-                    if (
+                    if ( 
                         responseData.result == "success" &&
                         parseInt(responseData.messageids) > 1000
                     ) {
                         return resolve(responseData.messageids);
                     }
-                    console.log(responseData)
                     // resolve(false)
                     reject(JSON.stringify(responseData))
                 })
@@ -642,6 +643,8 @@ export default class SmsMessager implements MyMessager {
             message: textToEdit
             // templateid: editData.template.id
         }
+
+       
         // console.log(data)
         return new Promise((resolve, reject) => {
             request.post('http://api.ghasedaksms.com/v2/sms/otp/create',
@@ -652,10 +655,11 @@ export default class SmsMessager implements MyMessager {
                     },
                     form: data,
                 }, function (error, response) {
-                    // console.log(error)
                     if (error) return reject(error);
 
                     var responseData = JSON.parse(response.body)
+                    console.log(response.body ,data)
+                    console.log(config?.config?.apikey)
                     if (
                         responseData.result == "success " || responseData.result == "success"
                     ) {

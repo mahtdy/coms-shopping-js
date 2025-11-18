@@ -9,21 +9,20 @@ import { AdminInfo } from "../auth/admin/admin-logIn";
 import BaseController from "../controller";
 
 let schema = z.object({}).merge(seoSchema)
-.omit({
-    mainKeyWord : true
-})
+    .omit({
+        mainKeyWord: true
+    })
 
-const insertSchema =basePageZod.merge( z.object({
+const insertSchema = basePageZod.merge(z.object({
     catID: BasePageController.id,
     title: z.string(),
     mainImage: z.string(),
     summary: z.string(),
     content: z.string().optional(),
-    seo : schema
+    seo: schema
 })).omit({
     category: true,
     categories: true,
-    // seo.mainKeyWord : true
 })
 
 
@@ -57,6 +56,9 @@ export class CategoryContentController extends BasePageController<CategoryConten
     }
     async publish(data: CategoryContent, id: string, update: boolean, admin: AdminInfo): Promise<Response> {
         try {
+            // console.log("data" , data)
+            // console.log("id" , id)
+            // console.log("update" , update)
             let r = await super.publish(data, id, update, admin)
             return r
         } catch (error) {
@@ -65,6 +67,35 @@ export class CategoryContentController extends BasePageController<CategoryConten
         }
     }
 
+
+    @Get("/summary-data")
+    async getCategoryContentSummary(
+        @Query({
+            destination: "module",
+            schema: z.string()
+        }) module: string,
+        @Query({
+            destination: "catID",
+            schema: BaseController.id
+        }) catID: string
+    ): Promise<Response> {
+        try {
+            const data = await this.repository.collection.findOne({
+                catID,
+                module
+            }, {
+                modifyDate: 1,
+                useage: 1,
+            })
+            return {
+                data,
+                status: 200
+            }
+        } catch (error) {
+            throw error
+        }
+
+    }
 
 
     initApis(): void {

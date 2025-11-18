@@ -186,7 +186,7 @@ export default class GoogleApi implements Plugin {
             })
             if (webmasterToken == null) {
                 return {
-                    status: 400
+                    status: 404
                 }
             }
 
@@ -197,7 +197,7 @@ export default class GoogleApi implements Plugin {
             var google_conf = await this.systemConfigRepo.getConfigValue("google_credential")
             if (!webmaster_conf || !google_conf) {
                 return {
-                    status: 400
+                    status: 404
                 }
             }
 

@@ -36,12 +36,10 @@ export default class VideoProccessor {
     }
 
     public static async screenshot(source: string, timemarks: string[]) {
-        console.log(source, timemarks)
-        // var screenshot = 
         try {
 
-            var filename = Date.now() + ".png"
-            // filename = "uploads/tmp/" + filename
+            var filename = Date.now() + ".jpg"
+            
             var folder = "src/uploads/tmp/"
             var dimensions = await this.getDimention(source)
 
@@ -68,7 +66,6 @@ export default class VideoProccessor {
                         // console.log(progress);
                     })
                     .on('end', async function () {
-                        console.log("end")
                         if (sended)
                             return
                         resolve(filename)

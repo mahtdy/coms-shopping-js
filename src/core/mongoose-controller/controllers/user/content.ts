@@ -18,6 +18,7 @@ import { Response as ExpressResponse } from "express";
 import DomainRepository from "../../repositories/domain/repository";
 import ContentGroupRepository from "../../repositories/contentGroup/repository";
 import LinkTagRepository from "../../repositories/linkTag/repository";
+import ConfigService from "../../../services/config";
 
 interface ContentQueryResult {
     code: 200 | 404 | 403 | 301 | 302 | 303 | 304 | 307 | 308,
@@ -64,7 +65,7 @@ export default class ContentController extends BaseController<Content> {
                 }]
         })
     }
-    
+
 
 
     async getHeaderScripts(
@@ -72,12 +73,12 @@ export default class ContentController extends BaseController<Content> {
     ) {
         try {
             let domain = await this.domainRepo.findOne({
-                domain : host
+                domain: host
             })
 
             let scripts = domain?.scripts || []
             return {
-                data :scripts
+                data: scripts
             }
         } catch (error) {
             throw error
@@ -97,10 +98,8 @@ export default class ContentController extends BaseController<Content> {
         try {
             url = decodeURI(url)
             url = url.replace("/api", "")
-           
-           
-            // var contentInfo = await this.findContentUrl(url, host)
-            var contentInfo = await this.findContentUrl(url, "jarahan.arvita.ir")
+
+            var contentInfo = await this.findContentUrl(url, host)
 
             if (contentInfo.code == 404) {
                 return {
@@ -124,7 +123,7 @@ export default class ContentController extends BaseController<Content> {
 
             var seoContent = contentInfo.data
             var rep = ContentMaduleRegistry.getInstance().getRegistry(seoContent.type)
-        
+
 
             if (seoContent.type == "category") {
                 var content: any = await rep?.repo?.findOne({
@@ -134,6 +133,7 @@ export default class ContentController extends BaseController<Content> {
                 })
                 let articleRep = ContentMaduleRegistry.getInstance().getRegistry(seoContent.categoryLable == "content" ? "article" : "author")
                 let paginate = await articleRep?.repo?.paginate({
+                    isPublished: true,
                     language: seoContent.language,
                     $or: [{
                         category: seoContent.id
@@ -164,7 +164,7 @@ export default class ContentController extends BaseController<Content> {
                         }
                     ]
                 })
-                
+
                 let catContent = await this.contentRepo.findOne({
                     id: content.category._id || content.category,
                     language: content.language._id || content.language,
@@ -1098,6 +1098,65 @@ export default class ContentController extends BaseController<Content> {
     }
 
 
+    async getContents(
+        category: string,
+        type: string,
+        language: string,
+        sortKey: string,
+        sortOrder: string,
+        id: string,
+        page: number,
+        limit: number,
+
+    ): Promise<Response> {
+        const contentMap: any = ConfigService.getConfig("contentMap")
+
+        type = contentMap[type]
+        var rep = ContentMaduleRegistry.getInstance().getRegistry(type)?.repo
+        let sort = sortKey != undefined && sortOrder != undefined ? {
+            sortKey: sortOrder
+        } : {
+            _id: -1
+        }
+        if (rep == undefined) {
+            return {
+                status: 200,
+                data: []
+            }
+        }
+
+        let query: any = {
+            category,
+            language,
+            type,
+        }
+        if(id != undefined){
+            query["id"]= {
+                $ne : id
+            }
+        }
+
+        let contents :any[]= JSON.parse(JSON.stringify(await this.contentRepo.findMany(query, {
+            sort
+        })))
+
+        for (let i = 0; i < contents.length; i++) {
+            contents[i]["page"] = await rep.findById(contents[i].id, {
+                projection: {
+                    imageConfig: 1,
+                    title: 1
+                }
+            })
+        }
+
+
+        return {
+            data: contents,
+            status : 200
+        }
+    }
+
+
     async getTagContent(
         url: string,
         host: string
@@ -1239,39 +1298,12 @@ export default class ContentController extends BaseController<Content> {
     ): Promise<Response> {
         try {
             var rep = ContentMaduleRegistry.getInstance().getRegistry(type)
-            // console.log(seoContent.type, rep, seoContent.id)
 
             var content: any = await rep?.repo?.findOne({
                 catID: catId,
                 language: language,
-                // lable: 
             })
 
-
-            // var contentInfo = await this.findContentByID(catId, host)
-
-            // if (contentInfo.code == 404) {
-            //     return {
-            //         next: true
-            //     }
-            // }
-            // if (contentInfo?.code?.toString().startsWith("3")) {
-            //     return {
-            //         status: contentInfo?.code,
-            //         data: contentInfo,
-            //         redirect: contentInfo.url
-            //     }
-            // }
-
-            // if (contentInfo.external == true) {
-            //     return {
-            //         status: 200,
-            //         data: contentInfo
-            //     }
-            // }
-
-            // content.seo = contentInfo.data
-            // console.log(content)
             let catContent = await this.contentRepo.findOne({
                 id: catId,
                 language: language,

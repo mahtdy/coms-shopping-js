@@ -1,24 +1,21 @@
 import { Types } from "mongoose"
-import { JSDOM } from "jsdom"
+
 import { QueryInfo, RepositoryConfigOptions } from "../../repository"
 import Article, { ProccessName, ProccessStatus } from "./model"
-// import schaduler from "../../../services/queue"
+
 import BasePageRepository, { BasePageOptions } from "../../basePage/repository"
 import ArticleContentProccessor from "../../../services/articleProccessing"
-import ImageProccessesor from "../../../services/imageProccessing"
-import ConfigService from "../../../services/config"
+
 import TemplateConfigRepository from "../templateConfig/repository"
 import CDN_Manager, { DiskFileManager } from "../../../services/fileManager"
 import SystemConfigRepository from "../system/repository"
-import path from "path"
+
 import FileManagerConfigRepository from "../fileManagerConfig/repository"
 import CategoryRepository from "../category/repository"
 import LanguageRepository from "../language/repository"
 import VideoQueueRepository from "../videoQueue/repository"
-import { ArticleController } from "../../controllers/article"
-import RedisCache from "../../../redis-cache"
 import WaterMarkRepository from "../waterMarkConfig/repository"
-import { resolve } from "path/win32"
+
 
 export function getUploadDestination(
     staticPath: string,
@@ -103,11 +100,7 @@ export default class ArticleRepository extends BasePageRepository<Article> {
         }
 
         ]
-        // this.cacheService = new RedisCache("article")
-
-        // this.addTestData()
-        // this.getAll()
-        // this.syncData()
+        
         this.watermarkConfigRepo = new WaterMarkRepository()
     }
 
@@ -141,6 +134,7 @@ export default class ArticleRepository extends BasePageRepository<Article> {
                 "author": "60a209e04dd1fb466672b4da",
                 "isPublished": true,
                 "commentStatus": false,
+                "commentShow" : false,
                 "noIndex": false,
                 "isDraft": false,
                 "fileUses": [],
@@ -260,8 +254,8 @@ export default class ArticleRepository extends BasePageRepository<Article> {
     }
 
 
-   
-   
+
+
 
 
 
@@ -319,10 +313,31 @@ export default class ArticleRepository extends BasePageRepository<Article> {
         if (doc.files)
             files.push(...doc?.files)
 
-        if (doc.videos)
-            files.push(... (doc.videos.map((elem: any) => {
-                return elem.mainSrc
-            })) as string[])
+        if (doc.videos != undefined) {
+
+            for (let i = 0; i < doc.videos.length; i++) {
+                if (typeof doc.videos[i] != "string") {
+                    files.push((doc.videos[i] as any).src)
+                    try {
+                        for (let j = 0; j < (doc.videos[i] as any).result.length; j++) {
+
+                            files.push((doc.videos[i] as any).result[j].path)
+
+                        }
+
+                        for (let j = 0; j < (doc.videos[i] as any).screenshots.length; j++) {
+
+                            files.push((doc.videos[i] as any).screenshots[j].path)
+
+                        }
+                    } catch (error) {
+
+                    }
+
+                }
+
+            }
+        }
         if (doc.imageConfig) {
             for (let i = 0; i < doc.imageConfig.length; i++) {
                 files.push(doc.imageConfig[i].path)

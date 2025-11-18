@@ -56,8 +56,6 @@ export class Dashboard extends Controller {
 
     ): Promise<Response> {
         try {
-
-
             var google_conf = await this.systemConfigRepo.getConfigValue("google_credential")
             var apiServer = await this.systemConfigRepo.getConfigValue("google_api_server")
             var apikey = await this.systemConfigRepo.getConfigValue("google_api_key")
@@ -89,7 +87,6 @@ export class Dashboard extends Controller {
 
             let webmaster_conf = webmasterToken.token
 
-            // var google_conf = await this.systemConfigRepo.getConfigValue("google_credential")
             if (!webmaster_conf || !google_conf) {
                 if (!google_conf) {
                     return {

@@ -4,34 +4,35 @@ import { BasePage } from "./basePage/model";
 type FilterType = "eq" | "reg" | "list" | "gte" | "lte"
 
 export interface QueryInterface {
-    field : string,
-    showField : string,
-    search ?: boolean,
-    options ?: string[],
-    filters : string[]
+    field: string,
+    showField: string,
+    search?: boolean,
+    options?: string[],
+    filters: string[]
 }
 
 export interface FromOwnFields {
-    field : string,
-    target : string,
-    showField : string,
+    field: string,
+    target: string,
+    showField: string,
     filters: string[]
-    foreign ?: string,
-    isArray ?: boolean,
-    element ?: string,
-    isDefault ?: boolean
+    foreign?: string,
+    isArray?: boolean,
+    element?: string,
+    isDefault?: boolean
 }
 
 export interface ContentMadule {
     name: string,
     repo?: BasePageRepository<BasePage>,
-    repourl ?: string,
-    queryData ?: QueryInterface[],
-    fromOwn ?: FromOwnFields[],
-    defaultExact ?: string,
-    selectData : any,
+    repourl?: string,
+    queryData?: QueryInterface[],
+    fromOwn?: FromOwnFields[],
+    defaultExact?: string,
+    selectData: any,
     sort: any
 }
+
 
 export default class ContentMaduleRegistry {
     private static instance: ContentMaduleRegistry;
@@ -46,14 +47,23 @@ export default class ContentMaduleRegistry {
 
         }
         return ContentMaduleRegistry.instance;
-        
+
     }
 
-    public async add(item : ContentMadule){
-        // console.log("item" , item.name)
+    public async add(item: ContentMadule) {
         ContentMaduleRegistry.instance.madules.push(item)
-        // console.log(await ContentMaduleRegistry.instance.madules[0].repo?.findAll({}))
     }
+
+    public async replace(item: ContentMadule) {
+        var index = this.madules.findIndex((value, index) => {
+            return value.name == item.name
+        })
+        if(index >=0){
+            this.madules[index] = item
+        }
+        // ContentMaduleRegistry.instance.madules.push(item)
+    }
+    
 
     // getRepository
     getRegistry(name: string): ContentMadule | undefined {
@@ -61,17 +71,16 @@ export default class ContentMaduleRegistry {
             return value.name == name
         })
 
-        if (index != -1)
-            return this.madules[index]
-        
+        return this.madules[index]
+
         return
     }
 
-    getAllRegistriesName(){
-        let names :string[] = []
+    getAllRegistriesName() {
+        let names: string[] = []
         for (let i = 0; i < this.madules.length; i++) {
             let name = this.madules[i].name
-            if(!names.includes(name)){
+            if (!names.includes(name)) {
                 names.push(name)
             }
         }
