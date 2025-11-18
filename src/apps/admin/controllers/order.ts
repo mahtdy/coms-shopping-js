@@ -5,26 +5,21 @@ import {Response} from "../../../core/controller";
 import {Post} from "../../../core/decorators/method";
 import {Body, User} from "../../../core/decorators/parameters";
 import {UserInfo} from "../../../core/mongoose-controller/auth/user/userAuthenticator";
-import Order, {OrderModel} from "../../../repositories/admin/order/model";
-import ProductRepository from "../../../repositories/admin/product/repository";
-import ProductWarehouseRepository from "../../../repositories/admin/productWarehouse/repository";
+import Order from "../../../repositories/admin/order/model";
 import {DiscountController} from "./discount";
 import z from "zod";
 import DiscountRepository from "../../../repositories/admin/discount/repository";
+import BasketOrderService from "../../services/basketOrderService";
 
 
 export class OrderController extends BaseController<Order> {
-    proRepo: ProductRepository;
-    prowareRepo: ProductWarehouseRepository;
-    orderRepo: OrderRepository;
     discountController: DiscountController;
+    basketOrderService: BasketOrderService;
 
     constructor(baseRoute: string, repo: OrderRepository) {
         super(baseRoute, repo);
-        this.orderRepo = new OrderRepository();
-        this.proRepo = new ProductRepository();
-        this.prowareRepo = new ProductWarehouseRepository();
         this.discountController = new DiscountController("/discount", new DiscountRepository());
+        this.basketOrderService = new BasketOrderService();
     }
 
     @Post("/checkout", {loginRequired: true})
@@ -42,21 +37,38 @@ export class OrderController extends BaseController<Order> {
         })
         data: Order
     ): Promise<Response> {
-        const newOrder = await this.createNewOrder(data, user.id);
-        if (newOrder.status !== 200 || !newOrder.data) {
-            return newOrder;
+        try {
+            const serviceResult = await this.basketOrderService.createOrderFromList(
+                user.id,
+                data.orderList
+            );
+
+            const orderId = serviceResult.order._id;
+            const discountResult = await this.discountController.generateDiscountAfterInvoice(user, {orderId});
+
+            return {
+                status: 200,
+                message: "Order created and discount generated",
+                data: {
+                    order: serviceResult.order,
+                    discount: discountResult.data,
+                    payment: serviceResult.paymentIntent,
+                    totals: serviceResult.totals,
+                },
+            };
+        } catch (error: any) {
+            if (error?.status) {
+                return {
+                    status: error.status,
+                    message: error.message,
+                };
+            }
+            throw error;
         }
-
-        const orderId = newOrder.data._id;
-        const discountResult = await this.discountController.generateDiscountAfterInvoice(user, {orderId});
-
-        return {
-            status: 200,
-            message: "Order created and discount generated",
-            data: {order: newOrder.data, discount: discountResult.data},
-        };
     }
 
+    // نسخه قبلی متد createNewOrder به شکل زیر بوده است:
+    /*
     private async createNewOrder(data: Order, userId: string): Promise<Response> {
         try {
             data.user = userId;
@@ -76,7 +88,6 @@ export class OrderController extends BaseController<Order> {
                 item.price = productwarehouse.price;
                 item.product = product?._id;
                 totalPriceProducts += item.price * item.quantity;
-                // totalCost += (productwarehouse.cost || 0) * item.quantity;
             }
 
             data.orderList = orderLists;
@@ -90,6 +101,7 @@ export class OrderController extends BaseController<Order> {
             throw error;
         }
     }
+    */
 }
 
 const order = new OrderController("/order", new OrderRepository());

@@ -14,9 +14,9 @@ import { Query, Body, User } from "../../../core/decorators/parameters";
 import { UserInfo } from "../../../core/mongoose-controller/auth/user/userAuthenticator";
 // import { Route } from "../../../core/application";
 import { pull } from "lodash";
-import OrderRepository from "../../../repositories/admin/order/repository";
-import { log } from "console";
-import request from "request";
+import BasketOrderService, {
+  CheckoutMeta,
+} from "../../services/basketOrderService";
 
 // interface OrderCheckoutBasket {
 //   user?: string | UserInfo;
@@ -33,8 +33,8 @@ import request from "request";
 export class BasketController extends BaseController<Basket> {
   proRepo: ProductRepository;
   prowareRepo: ProductWarehouseRepository;
-  orderRepo: OrderRepository;
   basketRepo: BasketRepository;
+  basketOrderService: BasketOrderService;
   constructor(
     baseRoute: string,
     repo: BasketRepository,
@@ -43,8 +43,8 @@ export class BasketController extends BaseController<Basket> {
     super(baseRoute, repo, options);
     this.basketRepo = new BasketRepository();
     this.proRepo = new ProductRepository();
-    this.orderRepo = new OrderRepository();
     this.prowareRepo = new ProductWarehouseRepository();
+    this.basketOrderService = new BasketOrderService();
   }
 
   // @PreExec({
@@ -121,106 +121,40 @@ export class BasketController extends BaseController<Basket> {
       totalPriceProducts: number;
     }
   ): Promise<Response> {
-    console.log("user.id12", user);
+    if (!user) {
+      return {
+        status: 401,
+        message: "برای ادامه باید وارد حساب کاربری شوید.",
+      };
+    }
 
+    const checkoutMeta: CheckoutMeta = {
+      address: orderData.address,
+      offCode: orderData.offCode,
+      sendType: orderData.sendType,
+      sendTime: orderData.sendTime,
+      sendDate: orderData.sendDate,
+      isBig: orderData.isBig,
+      typePeyment: orderData.typePeyment,
+      totalPriceProducts: orderData.totalPriceProducts,
+    };
+
+    return this.basketOrderService.checkoutFromBasket(user, checkoutMeta);
+
+    // کد قدیمی (برای رجوع در آینده) که مستقیما سبد را مدیریت می‌کرد:
+    /*
     console.log("orderData", orderData);
-    // console.log("productwarehouse11", BasketId);
-    // console.log("data11", data);
     if (user != null) {
       let userBasket = await this.basketRepo.findOne({
         user: user.id as string,
       });
-
       if (userBasket == null) {
         return { status: 200, message: "basket is empty" };
       } else {
         return this.createNewOrder(userBasket, user.id);
       }
-      console.log("userBasket", userBasket);
-
-      console.log("user.id11", user);
-      let userorder = await this.orderRepo.findOne({ user: user.id as string });
-      console.log("userorder", userorder);
-      // if (userorder == null) {
-      //   return this.createNewOrder(data, user.id);
-      // } else {
-      //   return this.updateExistingOrder(data, userorder);
-      // }
     }
-
-    // @User() user: UserInfo,
-    // @Body({
-    //   destination: "admin",
-    //   schema: BaseController.id,
-    // })
-    // admin: string,
-    // @Body({
-    //   destination: "id",
-    //   schema: BaseController.id,
-    // })
-    // id: string,
-    // @Body({
-    //   destination: "id_basket",
-    //   schema: BaseController.id,
-    // })
-    // id_basket: string,
-    // @Body({
-    //   destination: "id_user",
-    //   schema: BaseController.id,
-    // })
-    // id_user: string,
-    // @Body({
-    //   schema: z.object({
-    //     sendTime: z.string().default("8-12"),
-    //     isBig: z.boolean().default(false),
-    //     sendDate: z.coerce.date(),
-    //     sendType: z.coerce.number().positive().int(),
-    //     statusOrder: z.coerce.number().positive().int(),
-    //     totalPriceProducts: z.coerce.number().positive().int(),
-    //     totalPriceSend: z.coerce.number().positive().int(),
-    //     // totalPriceOff: z.coerce.number().positive().int(),
-    //     totalPriceAll: z.coerce.number().positive().int(),
-    //   }),
-    // })
-    // data: {
-    //   sendTime: string;
-    //   isBig: boolean;
-    //   sendDate: Date;
-    //   sendType: number;
-    //   statusOrder: number;
-    //   totalPriceProducts: number;
-    //   totalPriceSend: number;
-    //   // totalPriceOff: number,
-    //   totalPriceAll: number;
-    // }
-    // ) {
-    // console.log("id", id);
-    // console.log("user", user);
-    // console.log("data", data);
-
-    // this.orderRepo.insert(data as any);
-
-    return { status: 200, message: "insert data to  DB" };
-  }
-
-  private async createNewOrder(
-    data: Basket,
-    userId: string
-  ): Promise<Response> {
-    console.log("data", data);
-    console.log("userId", userId);
-    console.log("its ok");
-
-    return { status: 200, message: "New insert data to  DB" };
-  }
-
-  private async updateExistingOrder(
-    data: Basket,
-    userbasket: any
-  ): Promise<Response> {
-    console.log("data", data);
-    console.log("userbasket", userbasket);
-    return { status: 200, message: "Update insert data to  DB" };
+    */
   }
   // quantity-increase
   @Post("/increase")
@@ -460,6 +394,27 @@ export class BasketController extends BaseController<Basket> {
     }
     return { status: 200, message: "Basket updated successfully" };
   }
+
+  // نسخه قبلی متدهای تبدیل سبد به سفارش (برای ارجاع توسعه‌دهندگان):
+  /*
+  private async createNewOrder(
+    data: Basket,
+    userId: string
+  ): Promise<Response> {
+    console.log("data", data);
+    console.log("userId", userId);
+    return { status: 200, message: "New insert data to DB" };
+  }
+
+  private async updateExistingOrder(
+    data: Basket,
+    userbasket: any
+  ): Promise<Response> {
+    console.log("data", data);
+    console.log("userbasket", userbasket);
+    return { status: 200, message: "Update insert data to DB" };
+  }
+  */
 }
 
 const basket = new BasketController("/basket", new BasketRepository(), {
