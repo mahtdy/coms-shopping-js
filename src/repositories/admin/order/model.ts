@@ -3,8 +3,8 @@ import BaseUser from "../../../core/mongoose-controller/repositories/user/model"
 import Product from "../product/model";
 import Productwarehouse from "../productWarehouse/model";
 import Basket from "../basket/model";
+import Address from "../address/model";
 import { string } from "zod";
-// import Address from "../address/model";
 
 // const uniqueValidator = require("mongoose-unique-validator");
 export default interface Order extends Document {
@@ -17,6 +17,7 @@ export default interface Order extends Document {
   }[];
   totalCost: number;         // هزینه کل (خرید + جاری)
   totalPriceProducts: number; // قیمت کل محصولات
+  address?: string | Address; // آدرس ارسال سفارش (اختیاری)
   createdAt: Date;
 }
 
@@ -32,6 +33,7 @@ const orderSchema = new Schema({
   ],
   totalCost: { type: Number, required: true, default: 0 },
   totalPriceProducts: { type: Number, required: true, default: 0 },
+  address: { type: Types.ObjectId, required: false, ref: "address" }, // آدرس ارسال سفارش
   createdAt: { type: Date, default: Date.now },
 });
 

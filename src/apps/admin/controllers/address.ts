@@ -41,218 +41,255 @@ export class AddressController extends BaseController<Address> {
     }
 
 
-    @Post("/user", {})
+    /**
+     * توضیح فارسی: دریافت تمام آدرس‌های کاربر از طریق توکن احراز هویت.
+     */
+    @Get("/user", {
+        loginRequired: true,
+    })
     async getUserAddresses(
-        // @User() user: UserInfo,
-        @Body({
-            schema: z.object({
-                userId: BaseController.id.default("627e2d5cb22fe19e794c8347"),
-                // schema: data.id
-            }),
-        })
-        addressData: {
-            userId: string,
-        }
+        @User() user: UserInfo,
     ): Promise<Response> {
-        console.log("user.id12", addressData);
-
         try {
             const addresses = await this.repository.findOne({
-                user: addressData.userId as string,
-
-            })
+                user: user.id as string,
+            });
+            
             return {
                 status: 200,
-                data: addresses
+                data: addresses || { user: user.id, addressList: [] }
             };
         } catch (error) {
             throw error;
         }
     }
 
-    // افزودن آدرس جدید برای کاربر
-    // @Post("/user/:user", {
-    //     loginRequired: true,
-    //
-    // })
-    // async addUserAddress(
-    //     @User() user: UserInfo,
-    //     @Body({
-    //         schema: z.object({
-    //             title: z.string(),
-    //             receiver: z.object({
-    //                 name: z.string(),
-    //                 family: z.string(),
-    //                 phoneNumber: z.string()
-    //             }),
-    //             country: z.string(),
-    //             province: z.string(),
-    //             city: z.string(),
-    //             district: z.string(),
-    //             street: z.string(),
-    //             details: z.string(),
-    //             postalCode: z.string(),
-    //             location: z.object({
-    //                 lat: z.number(),
-    //                 lng: z.number()
-    //             }).optional(),
-    //             isDefault: z.boolean().optional(),
-    //         }),
-    //     })
-    //     addressData: {
-    //         title: string,
-    //         receiver: {
-    //             name: string,
-    //             family: string,
-    //             phoneNumber: string
-    //         },
-    //         country: string,
-    //         province: string,
-    //         city: string,
-    //         district: string,
-    //         street: string,
-    //         details: string,
-    //         postalCode: string,
-    //         location: {
-    //             lat: number,
-    //             lng: number
-    //         },
-    //         isDefault: boolean,
-    //     }
-    // ): Promise<Response> {
-    //     try {
-    //         console.log("user.id12", user);
-    //         // افزودن شناسه کاربر به آدرس
-    //         user :  user.id;
-    //
-    //         const address = await (this.repository).addAddress(addressData);
-    //
-    //         return {
-    //             status: 200,
-    //             message: "آدرس با موفقیت اضافه شد",
-    //             data: address
-    //         };
-    //     } catch (error) {
-    //         throw error;
-    //     }
-    // }
-    //
-    // // ویرایش آدرس کاربر
-    // @Put("/:id", {
-    //     apiDoc: {
-    //         security: [
-    //             {
-    //                 AdminAuth: [],
-    //             },
-    //         ],
-    //     },
-    // })
-    // async updateAddress(
-    //     @User() user: UserInfo,
-    //     @Body({
-    //         destination: "id"
-    //     }) addressId: string,
-    //     @Body({
-    //         schema: z.object({
-    //             title: z.string(),
-    //             receiver: z.object({
-    //                 name: z.string(),
-    //                 family: z.string(),
-    //                 phoneNumber: z.string()
-    //             }),
-    //             country: z.string(),
-    //             province: z.string(),
-    //             city: z.string(),
-    //             district: z.string(),
-    //             street: z.string(),
-    //             details: z.string(),
-    //             postalCode: z.string(),
-    //             location: z.object({
-    //                 lat: z.number(),
-    //                 lng: z.number()
-    //             }).optional(),
-    //             isDefault: z.boolean().optional(),
-    //         }),
-    //     })
-    //     addressData: {
-    //         title: string,
-    //         receiver: {
-    //             name: string,
-    //             family: string,
-    //             phoneNumber: string
-    //         },
-    //         country: string,
-    //         province: string,
-    //         city: string,
-    //         district: string,
-    //         street: string,
-    //         details: string,
-    //         postalCode: string,
-    //         location: {
-    //             lat: number,
-    //             lng: number
-    //         },
-    //         isDefault: boolean,
-    //     }
-    // ): Promise<Response> {
-    //     try {
-    //         const updatedAddress = await (this.repository).updateAddress(addressId, addressData);
-    //
-    //         if (!updatedAddress) {
-    //             return {
-    //                 status: 404,
-    //                 message: "آدرس مورد نظر یافت نشد"
-    //             };
-    //         }
-    //
-    //         return {
-    //             status: 200,
-    //             message: "آدرس با موفقیت بروزرسانی شد",
-    //             data: updatedAddress
-    //         };
-    //     } catch (error) {
-    //         throw error;
-    //     }
-    // }
-
-    // حذف آدرس
-    @Delete("/:id", {
-        apiDoc: {
-            security: [
-                {
-                    AdminAuth: [],
-                },
-            ],
-        },
+    /**
+     * توضیح فارسی: افزودن آدرس جدید برای کاربر. اگر اولین آدرس باشد، به صورت پیش‌فرض تنظیم می‌شود.
+     */
+    @Post("/user", {
+        loginRequired: true,
     })
-    async deleteAddress(
+    async addUserAddress(
+        @User() user: UserInfo,
         @Body({
-            destination: "id"
-        }) addressId: string,
-        @User() user: UserInfo
+            schema: z.object({
+                title: z.string(),
+                receiver: z.object({
+                    name: z.string(),
+                    family: z.string(),
+                    phoneNumber: z.string()
+                }),
+                country: z.string(),
+                province: z.string(),
+                city: z.string(),
+                district: z.string(),
+                street: z.string(),
+                details: z.string(),
+                postalCode: z.string(),
+                location: z.object({
+                    lat: z.number(),
+                    lng: z.number()
+                }).optional(),
+                isDefault: z.boolean().optional(),
+            }),
+        })
+        addressData: {
+            title: string,
+            receiver: {
+                name: string,
+                family: string,
+                phoneNumber: string
+            },
+            country: string,
+            province: string,
+            city: string,
+            district: string,
+            street: string,
+            details: string,
+            postalCode: string,
+            location?: {
+                lat: number,
+                lng: number
+            },
+            isDefault?: boolean,
+        }
     ): Promise<Response> {
         try {
-            const existingAddress = await this.repository.findById(addressId);
-            if (!existingAddress) {
+            // بررسی وجود آدرس برای کاربر
+            let userAddress = await this.repository.findOne({ user: user.id as string });
+            
+            const newAddressItem = {
+                ...addressData,
+                isDefault: addressData.isDefault ?? (userAddress === null || userAddress.addressList.length === 0),
+                createdAt: new Date(),
+                updatedAt: new Date(),
+            };
+
+            if (!userAddress) {
+                // اگر کاربر آدرسی ندارد، یک رکورد جدید ایجاد می‌کنیم
+                userAddress = await this.repository.insert({
+                    user: user.id as string,
+                    addressList: [newAddressItem],
+                } as any);
+            } else {
+                // اگر آدرس پیش‌فرض جدید است، بقیه را غیرفعال می‌کنیم
+                if (newAddressItem.isDefault) {
+                    userAddress.addressList.forEach((addr: any) => {
+                        addr.isDefault = false;
+                    });
+                }
+                userAddress.addressList.push(newAddressItem as any);
+                await this.repository.editById(userAddress._id, {
+                    $set: { addressList: userAddress.addressList }
+                });
+            }
+
+            return {
+                status: 200,
+                message: "آدرس با موفقیت اضافه شد",
+                data: userAddress
+            };
+        } catch (error) {
+            throw error;
+        }
+    }
+    /**
+     * توضیح فارسی: ویرایش یک آدرس خاص از لیست آدرس‌های کاربر. index آدرس در addressList باید ارسال شود.
+     */
+    @Put("/user", {
+        loginRequired: true,
+    })
+    async updateAddress(
+        @User() user: UserInfo,
+        @Body({
+            schema: z.object({
+                addressIndex: z.number().int().min(0), // ایندکس آدرس در addressList
+                title: z.string().optional(),
+                receiver: z.object({
+                    name: z.string(),
+                    family: z.string(),
+                    phoneNumber: z.string()
+                }).optional(),
+                country: z.string().optional(),
+                province: z.string().optional(),
+                city: z.string().optional(),
+                district: z.string().optional(),
+                street: z.string().optional(),
+                details: z.string().optional(),
+                postalCode: z.string().optional(),
+                location: z.object({
+                    lat: z.number(),
+                    lng: z.number()
+                }).optional(),
+                isDefault: z.boolean().optional(),
+            }),
+        })
+        updateData: {
+            addressIndex: number,
+            title?: string,
+            receiver?: {
+                name: string,
+                family: string,
+                phoneNumber: string
+            },
+            country?: string,
+            province?: string,
+            city?: string,
+            district?: string,
+            street?: string,
+            details?: string,
+            postalCode?: string,
+            location?: {
+                lat: number,
+                lng: number
+            },
+            isDefault?: boolean,
+        }
+    ): Promise<Response> {
+        try {
+            const userAddress = await this.repository.findOne({ user: user.id as string });
+            
+            if (!userAddress || !userAddress.addressList[updateData.addressIndex]) {
                 return {
                     status: 404,
                     message: "آدرس مورد نظر یافت نشد"
                 };
             }
 
-            // اگر آدرس پیش‌فرض است، باید یک آدرس دیگر را پیش‌فرض کنیم
-            // if (existingAddress.isDefault) {
-            //     const otherAddress = await this.repository.findOne({
-            //         userId: existingAddress.user,
-            //         _id: {$ne: addressId}
-            //     });
-            //
-            //     if (otherAddress) {
-            //         await (this.repository).setDefaultAddress(otherAddress._id, existingAddress.user);
-            //     }
-            // }
+            // به‌روزرسانی آدرس در ایندکس مشخص شده
+            const addressToUpdate = userAddress.addressList[updateData.addressIndex] as any;
+            
+            // اگر آدرس جدید به عنوان پیش‌فرض تنظیم می‌شود، بقیه را غیرفعال می‌کنیم
+            if (updateData.isDefault === true) {
+                userAddress.addressList.forEach((addr: any, idx) => {
+                    if (idx !== updateData.addressIndex) {
+                        addr.isDefault = false;
+                    }
+                });
+            }
 
-            await this.repository.findByIdAndDelete(addressId);
+            // اعمال تغییرات
+            Object.assign(addressToUpdate, {
+                ...updateData,
+                updatedAt: new Date(),
+            });
+
+            await this.repository.editById(userAddress._id, {
+                $set: { addressList: userAddress.addressList }
+            });
+
+            return {
+                status: 200,
+                message: "آدرس با موفقیت بروزرسانی شد",
+                data: userAddress
+            };
+        } catch (error) {
+            throw error;
+        }
+    }
+
+    /**
+     * توضیح فارسی: حذف یک آدرس خاص از لیست آدرس‌های کاربر. index آدرس در addressList باید ارسال شود.
+     */
+    @Delete("/user", {
+        loginRequired: true,
+    })
+    async deleteAddress(
+        @User() user: UserInfo,
+        @Body({
+            schema: z.object({
+                addressIndex: z.number().int().min(0), // ایندکس آدرس در addressList
+            }),
+        })
+        deleteData: {
+            addressIndex: number,
+        }
+    ): Promise<Response> {
+        try {
+            const userAddress = await this.repository.findOne({ user: user.id as string });
+            
+            if (!userAddress || !userAddress.addressList[deleteData.addressIndex]) {
+                return {
+                    status: 404,
+                    message: "آدرس مورد نظر یافت نشد"
+                };
+            }
+
+            const addressToDelete = userAddress.addressList[deleteData.addressIndex] as any;
+            const wasDefault = addressToDelete.isDefault;
+
+            // حذف آدرس از لیست
+            userAddress.addressList.splice(deleteData.addressIndex, 1);
+
+            // اگر آدرس حذف شده پیش‌فرض بود و آدرس دیگری وجود دارد، اولین آدرس را پیش‌فرض می‌کنیم
+            if (wasDefault && userAddress.addressList.length > 0) {
+                (userAddress.addressList[0] as any).isDefault = true;
+            }
+
+            await this.repository.editById(userAddress._id, {
+                $set: { addressList: userAddress.addressList }
+            });
 
             return {
                 status: 200,
