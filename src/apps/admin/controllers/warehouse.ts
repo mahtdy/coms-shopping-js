@@ -14,6 +14,7 @@ import {Get, Post, Put, Delete} from "../../../core/decorators/method";
 import {Query, Body} from "../../../core/decorators/parameters";
 import {z} from "zod";
 import InventoryService from "../../services/inventoryService";
+import InventoryReportService from "../../services/inventoryReportService";
 
 export class WarehouseController extends BaseController<Warehouse> {
     private inventoryRepo: ProductWarehouseRepository;
@@ -24,6 +25,7 @@ export class WarehouseController extends BaseController<Warehouse> {
     private inventoryHistoryRepo: InventoryHistoryRepository;
     private warehouseTransferRepo: WarehouseTransferRepository;
     private inventoryService: InventoryService;
+    private inventoryReportService: InventoryReportService;
     private repo: any;
 
     constructor(
@@ -40,6 +42,7 @@ export class WarehouseController extends BaseController<Warehouse> {
         this.inventoryHistoryRepo = new InventoryHistoryRepository();
         this.warehouseTransferRepo = new WarehouseTransferRepository();
         this.inventoryService = new InventoryService();
+        this.inventoryReportService = new InventoryReportService();
     }
 
     initApis() {
@@ -562,6 +565,105 @@ export class WarehouseController extends BaseController<Warehouse> {
         );
         const total = await this.inventoryHistoryRepo.count({inventory_id});
         return {history, total};
+    }
+
+    /**
+     * توضیح فارسی: دریافت گزارش موجودی کم
+     */
+    @Get("/reports/low-stock")
+    async getLowStockReport(
+        @Query({
+            schema: z.object({
+                warehouseId: BaseController.id.optional(),
+                threshold: z.number().default(10),
+            }),
+        })
+        query: { warehouseId?: string; threshold: number }
+    ) {
+        const report = await this.inventoryReportService.getLowStockReport(
+            query.warehouseId,
+            query.threshold
+        );
+        return { report, total: report.length };
+    }
+
+    /**
+     * توضیح فارسی: دریافت تاریخچه حرکت موجودی
+     */
+    @Get("/reports/movements")
+    async getMovementHistory(
+        @Query({
+            schema: z.object({
+                inventoryId: BaseController.id.optional(),
+                warehouseId: BaseController.id.optional(),
+                startDate: z.string().optional(),
+                endDate: z.string().optional(),
+                changeType: z.enum(["purchase", "sale", "transfer", "adjustment"]).optional(),
+                page: z.number().default(1),
+                limit: z.number().default(50),
+            }),
+        })
+        query: {
+            inventoryId?: string;
+            warehouseId?: string;
+            startDate?: string;
+            endDate?: string;
+            changeType?: "purchase" | "sale" | "transfer" | "adjustment";
+            page: number;
+            limit: number;
+        }
+    ) {
+        const startDate = query.startDate ? new Date(query.startDate) : undefined;
+        const endDate = query.endDate ? new Date(query.endDate) : undefined;
+        
+        const result = await this.inventoryReportService.getMovementHistory(
+            query.inventoryId,
+            query.warehouseId,
+            startDate,
+            endDate,
+            query.changeType,
+            query.page,
+            query.limit
+        );
+        return result;
+    }
+
+    /**
+     * توضیح فارسی: دریافت گزارش موجودی بر اساس انبار
+     */
+    @Get("/reports/warehouse-inventory")
+    async getWarehouseInventoryReport(
+        @Query({
+            schema: z.object({
+                warehouseId: BaseController.id.optional(),
+            }),
+        })
+        query: { warehouseId?: string }
+    ) {
+        const report = await this.inventoryReportService.getWarehouseInventoryReport(
+            query.warehouseId
+        );
+        return { report };
+    }
+
+    /**
+     * توضیح فارسی: دریافت خلاصه موجودی (برای داشبورد)
+     */
+    @Get("/reports/summary")
+    async getInventorySummary() {
+        const summary = await this.inventoryReportService.getInventorySummary();
+        return { summary };
+    }
+
+    /**
+     * توضیح فارسی: دریافت گزارش موجودی یک محصول خاص
+     */
+    @Get("/reports/product/:productId")
+    async getProductInventoryReport(
+        @Query({destination: "productId", schema: BaseController.id}) productId: string
+    ) {
+        const report = await this.inventoryReportService.getProductInventoryReport(productId);
+        return { report };
     }
 }
 

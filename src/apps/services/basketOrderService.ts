@@ -15,6 +15,7 @@ import Package from "../../../repositories/admin/package/model";
 import ShippingService, { SendType, SendTime } from "./shippingService";
 import DiscountService from "./discountService";
 import TaxService from "./taxService";
+import InventoryService from "./inventoryService";
 
 /**
  * توضیح: ورودی‌های مربوط به جزئیات ارسال و پرداخت توسط این اینترفیس دریافت می‌شود.
@@ -57,6 +58,7 @@ export default class BasketOrderService {
   private shippingService: ShippingService;
   private discountService: DiscountService;
   private taxService: TaxService;
+  private inventoryService: InventoryService;
 
   constructor() {
     this.basketRepo = new BasketRepository();
@@ -71,6 +73,8 @@ export default class BasketOrderService {
     this.shippingService = new ShippingService();
     this.discountService = new DiscountService();
     this.taxService = new TaxService();
+    // کامنت: استفاده از سرویس موجودی برای مدیریت ورود/خروج و تاریخچه
+    this.inventoryService = new InventoryService();
   }
 
   /**
@@ -166,6 +170,7 @@ export default class BasketOrderService {
       }
     }
 
+    // کامنت: آماده‌سازی آیتم‌ها و کاهش موجودی (قبل از ایجاد order)
     const preparedItems = await this.prepareItems(items);
     let totalPriceProducts = preparedItems.totals.totalPriceProducts;
 
@@ -314,60 +319,126 @@ export default class BasketOrderService {
 
   /**
    * توضیح فارسی: برای هر آیتم سبد، موجودی انبار و قیمت نهایی محاسبه و رزرو می‌شود.
+   * این متد از InventoryService استفاده می‌کند تا تاریخچه موجودی ثبت شود.
    */
-  private async prepareItems(items: Order["orderList"]) {
+  private async prepareItems(items: Order["orderList"], orderId?: string) {
     const prepared: Order["orderList"] = [];
     let totalPriceProducts = 0;
     let totalCost = 0;
+    const inventoryAdjustments: Array<{ productWarehouseId: string; quantity: number }> = [];
 
-    for (const item of items) {
-      const productWarehouse = await this.loadWarehouse(item.productwarehouse);
-      const quantity = item.quantity || 0;
+    try {
+      for (const item of items) {
+        const productWarehouse = await this.loadWarehouse(item.productwarehouse);
+        const quantity = item.quantity || 0;
 
-      if (!productWarehouse) {
-        throw {
-          status: 400,
-          message: "محصول انتخاب‌شده در انبار یافت نشد.",
-        };
-      }
-
-      if (productWarehouse.quantity < quantity) {
-        throw {
-          status: 400,
-          message: "موجودی کافی برای محصول وجود ندارد.",
-        };
-      }
-
-      const salesPrice =
-        productWarehouse.price || productWarehouse.variantPrice || item.price;
-      const purchasePrice = productWarehouse.purchasePrice || 0;
-
-      prepared.push({
-        product: productWarehouse.product,
-        productwarehouse: productWarehouse._id as unknown as Types.ObjectId,
-        quantity,
-        price: salesPrice,
-      });
-
-      totalPriceProducts += salesPrice * quantity;
-      totalCost += purchasePrice * quantity;
-
-      await this.productWarehouseRepo.collection.findByIdAndUpdate(
-        productWarehouse._id,
-        {
-          $inc: { quantity: -quantity },
-          $set: { lastUpdated: new Date() },
+        if (!productWarehouse) {
+          throw {
+            status: 400,
+            message: "محصول انتخاب‌شده در انبار یافت نشد.",
+          };
         }
-      );
-    }
 
-    return {
-      items: prepared,
-      totals: {
-        totalPriceProducts,
-        totalCost,
-      },
-    };
+        if (productWarehouse.quantity < quantity) {
+          throw {
+            status: 400,
+            message: `موجودی کافی برای محصول وجود ندارد. موجودی فعلی: ${productWarehouse.quantity}, درخواستی: ${quantity}`,
+          };
+        }
+
+        const salesPrice =
+          productWarehouse.price || productWarehouse.variantPrice || item.price;
+        const purchasePrice = productWarehouse.purchasePrice || 0;
+
+        prepared.push({
+          product: productWarehouse.product,
+          productwarehouse: productWarehouse._id as unknown as Types.ObjectId,
+          quantity,
+          price: salesPrice,
+        });
+
+        totalPriceProducts += salesPrice * quantity;
+        totalCost += purchasePrice * quantity;
+
+        // کامنت: استفاده از InventoryService برای کاهش موجودی و ثبت تاریخچه
+        const warehouseId = typeof productWarehouse.warehouse === "string"
+          ? productWarehouse.warehouse
+          : (productWarehouse.warehouse as any)?._id?.toString() || (productWarehouse.warehouse as any)?.toString();
+        
+        const variantId = productWarehouse.variant
+          ? (typeof productWarehouse.variant === "string"
+              ? productWarehouse.variant
+              : (productWarehouse.variant as any)?._id?.toString() || (productWarehouse.variant as any)?.toString())
+          : undefined;
+
+        const productId = typeof productWarehouse.product === "string"
+          ? productWarehouse.product
+          : (productWarehouse.product as any)?._id?.toString() || (productWarehouse.product as any)?.toString();
+
+        await this.inventoryService.adjustStock({
+          warehouseId,
+          variantId,
+          productId,
+          batchNumber: productWarehouse.batchNumber || "DEFAULT",
+          quantityDelta: -quantity, // کاهش موجودی
+          variantPrice: salesPrice,
+          purchasePrice,
+          reason: orderId ? `Order #${orderId}` : "Basket checkout",
+          changeType: "sale",
+        });
+
+        // کامنت: ذخیره اطلاعات برای برگشت در صورت خطا
+        inventoryAdjustments.push({
+          productWarehouseId: productWarehouse._id.toString(),
+          quantity,
+        });
+      }
+
+      return {
+        items: prepared,
+        totals: {
+          totalPriceProducts,
+          totalCost,
+        },
+      };
+    } catch (error: any) {
+      // کامنت: در صورت خطا، موجودی‌های کم شده را برمی‌گردانیم
+      for (const adjustment of inventoryAdjustments) {
+        try {
+          const productWarehouse = await this.productWarehouseRepo.findById(adjustment.productWarehouseId);
+          if (productWarehouse) {
+            const warehouseId = typeof productWarehouse.warehouse === "string"
+              ? productWarehouse.warehouse
+              : (productWarehouse.warehouse as any)?._id?.toString() || (productWarehouse.warehouse as any)?.toString();
+            
+            const variantId = productWarehouse.variant
+              ? (typeof productWarehouse.variant === "string"
+                  ? productWarehouse.variant
+                  : (productWarehouse.variant as any)?._id?.toString() || (productWarehouse.variant as any)?.toString())
+              : undefined;
+
+            const productId = typeof productWarehouse.product === "string"
+              ? productWarehouse.product
+              : (productWarehouse.product as any)?._id?.toString() || (productWarehouse.product as any)?.toString();
+
+            await this.inventoryService.adjustStock({
+              warehouseId,
+              variantId,
+              productId,
+              batchNumber: productWarehouse.batchNumber || "DEFAULT",
+              quantityDelta: adjustment.quantity, // برگشت موجودی
+              variantPrice: productWarehouse.variantPrice || productWarehouse.price,
+              purchasePrice: productWarehouse.purchasePrice,
+              reason: "Rollback due to checkout error",
+              changeType: "adjustment",
+            });
+          }
+        } catch (rollbackError: any) {
+          console.error("خطا در برگشت موجودی:", rollbackError);
+        }
+      }
+      throw error;
+    }
   }
 
   private async loadWarehouse(
