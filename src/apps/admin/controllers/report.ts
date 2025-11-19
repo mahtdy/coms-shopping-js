@@ -1,0 +1,396 @@
+import BaseController, { ControllerOptions } from "../../../core/mongoose-controller/controller";
+import { Response } from "../../../core/controller";
+import { Get } from "../../../core/decorators/method";
+import { Query } from "../../../core/decorators/parameters";
+import { z } from "zod";
+import SalesReportService from "../../services/salesReportService";
+import OrderReportService from "../../services/orderReportService";
+import InventoryReportService from "../../services/inventoryReportService";
+
+/**
+ * توضیح فارسی: کنترلر گزارش‌ها
+ * این کنترلر همه گزارش‌های سیستم را جمع‌آوری و ارائه می‌دهد.
+ */
+export class ReportController extends BaseController<any> {
+  private salesReportService: SalesReportService;
+  private orderReportService: OrderReportService;
+  private inventoryReportService: InventoryReportService;
+
+  constructor(baseRoute: string, options?: ControllerOptions) {
+    super(baseRoute, {} as any, options);
+    this.salesReportService = new SalesReportService();
+    this.orderReportService = new OrderReportService();
+    this.inventoryReportService = new InventoryReportService();
+  }
+
+  initApis() {
+    super.initApis();
+  }
+
+  /**
+   * توضیح فارسی: دریافت خلاصه فروش
+   */
+  @Get("/sales/summary")
+  async getSalesSummary(
+    @Query({
+      schema: z.object({
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+      }),
+    })
+    query: { startDate?: string; endDate?: string }
+  ): Promise<Response> {
+    try {
+      const startDate = query.startDate ? new Date(query.startDate) : undefined;
+      const endDate = query.endDate ? new Date(query.endDate) : undefined;
+
+      const summary = await this.salesReportService.getSalesSummary(startDate, endDate);
+
+      return {
+        status: 200,
+        data: summary,
+      };
+    } catch (error: any) {
+      return {
+        status: 500,
+        message: error.message || "خطا در دریافت خلاصه فروش",
+      };
+    }
+  }
+
+  /**
+   * توضیح فارسی: دریافت گزارش فروش دوره‌ای
+   */
+  @Get("/sales/period")
+  async getPeriodSalesReport(
+    @Query({
+      schema: z.object({
+        startDate: z.string(),
+        endDate: z.string(),
+        periodType: z.enum(["daily", "weekly", "monthly"]).default("daily"),
+      }),
+    })
+    query: { startDate: string; endDate: string; periodType: "daily" | "weekly" | "monthly" }
+  ): Promise<Response> {
+    try {
+      const startDate = new Date(query.startDate);
+      const endDate = new Date(query.endDate);
+
+      const report = await this.salesReportService.getPeriodSalesReport(
+        startDate,
+        endDate,
+        query.periodType
+      );
+
+      return {
+        status: 200,
+        data: report,
+      };
+    } catch (error: any) {
+      return {
+        status: 500,
+        message: error.message || "خطا در دریافت گزارش فروش دوره‌ای",
+      };
+    }
+  }
+
+  /**
+   * توضیح فارسی: دریافت گزارش فروش بر اساس محصول
+   */
+  @Get("/sales/products")
+  async getProductSalesReport(
+    @Query({
+      schema: z.object({
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+        limit: z.number().optional(),
+      }),
+    })
+    query: { startDate?: string; endDate?: string; limit?: number }
+  ): Promise<Response> {
+    try {
+      const startDate = query.startDate ? new Date(query.startDate) : undefined;
+      const endDate = query.endDate ? new Date(query.endDate) : undefined;
+
+      const report = await this.salesReportService.getProductSalesReport(
+        startDate,
+        endDate,
+        query.limit
+      );
+
+      return {
+        status: 200,
+        data: report,
+      };
+    } catch (error: any) {
+      return {
+        status: 500,
+        message: error.message || "خطا در دریافت گزارش فروش محصولات",
+      };
+    }
+  }
+
+  /**
+   * توضیح فارسی: دریافت گزارش وضعیت سفارش
+   */
+  @Get("/orders/status")
+  async getOrderStatusReport(
+    @Query({
+      schema: z.object({
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+      }),
+    })
+    query: { startDate?: string; endDate?: string }
+  ): Promise<Response> {
+    try {
+      const startDate = query.startDate ? new Date(query.startDate) : undefined;
+      const endDate = query.endDate ? new Date(query.endDate) : undefined;
+
+      const report = await this.orderReportService.getOrderStatusReport(startDate, endDate);
+
+      return {
+        status: 200,
+        data: report,
+      };
+    } catch (error: any) {
+      return {
+        status: 500,
+        message: error.message || "خطا در دریافت گزارش وضعیت سفارش",
+      };
+    }
+  }
+
+  /**
+   * توضیح فارسی: دریافت گزارش وضعیت ارسال
+   */
+  @Get("/orders/delivery-status")
+  async getDeliveryStatusReport(
+    @Query({
+      schema: z.object({
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+      }),
+    })
+    query: { startDate?: string; endDate?: string }
+  ): Promise<Response> {
+    try {
+      const startDate = query.startDate ? new Date(query.startDate) : undefined;
+      const endDate = query.endDate ? new Date(query.endDate) : undefined;
+
+      const report = await this.orderReportService.getDeliveryStatusReport(startDate, endDate);
+
+      return {
+        status: 200,
+        data: report,
+      };
+    } catch (error: any) {
+      return {
+        status: 500,
+        message: error.message || "خطا در دریافت گزارش وضعیت ارسال",
+      };
+    }
+  }
+
+  /**
+   * توضیح فارسی: دریافت گزارش سفارش بر اساس منطقه
+   */
+  @Get("/orders/regions")
+  async getRegionOrderReport(
+    @Query({
+      schema: z.object({
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+      }),
+    })
+    query: { startDate?: string; endDate?: string }
+  ): Promise<Response> {
+    try {
+      const startDate = query.startDate ? new Date(query.startDate) : undefined;
+      const endDate = query.endDate ? new Date(query.endDate) : undefined;
+
+      const report = await this.orderReportService.getRegionOrderReport(startDate, endDate);
+
+      return {
+        status: 200,
+        data: report,
+      };
+    } catch (error: any) {
+      return {
+        status: 500,
+        message: error.message || "خطا در دریافت گزارش سفارش بر اساس منطقه",
+      };
+    }
+  }
+
+  /**
+   * توضیح فارسی: دریافت گزارش زمان تحویل
+   */
+  @Get("/orders/delivery-time")
+  async getDeliveryTimeReport(
+    @Query({
+      schema: z.object({
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+      }),
+    })
+    query: { startDate?: string; endDate?: string }
+  ): Promise<Response> {
+    try {
+      const startDate = query.startDate ? new Date(query.startDate) : undefined;
+      const endDate = query.endDate ? new Date(query.endDate) : undefined;
+
+      const report = await this.orderReportService.getDeliveryTimeReport(startDate, endDate);
+
+      return {
+        status: 200,
+        data: report,
+      };
+    } catch (error: any) {
+      return {
+        status: 500,
+        message: error.message || "خطا در دریافت گزارش زمان تحویل",
+      };
+    }
+  }
+
+  /**
+   * توضیح فارسی: دریافت گزارش سفارش‌های مشکل‌دار
+   */
+  @Get("/orders/problematic")
+  async getProblematicOrdersReport(
+    @Query({
+      schema: z.object({
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+      }),
+    })
+    query: { startDate?: string; endDate?: string }
+  ): Promise<Response> {
+    try {
+      const startDate = query.startDate ? new Date(query.startDate) : undefined;
+      const endDate = query.endDate ? new Date(query.endDate) : undefined;
+
+      const report = await this.orderReportService.getProblematicOrdersReport(startDate, endDate);
+
+      return {
+        status: 200,
+        data: report,
+      };
+    } catch (error: any) {
+      return {
+        status: 500,
+        message: error.message || "خطا در دریافت گزارش سفارش‌های مشکل‌دار",
+      };
+    }
+  }
+
+  /**
+   * توضیح فارسی: دریافت خلاصه موجودی
+   */
+  @Get("/inventory/summary")
+  async getInventorySummary(): Promise<Response> {
+    try {
+      const summary = await this.inventoryReportService.getInventorySummary();
+
+      return {
+        status: 200,
+        data: summary,
+      };
+    } catch (error: any) {
+      return {
+        status: 500,
+        message: error.message || "خطا در دریافت خلاصه موجودی",
+      };
+    }
+  }
+
+  /**
+   * توضیح فارسی: دریافت گزارش موجودی کم
+   */
+  @Get("/inventory/low-stock")
+  async getLowStockReport(
+    @Query({
+      schema: z.object({
+        warehouseId: z.string().optional(),
+        threshold: z.number().default(10),
+      }),
+    })
+    query: { warehouseId?: string; threshold: number }
+  ): Promise<Response> {
+    try {
+      const report = await this.inventoryReportService.getLowStockReport(
+        query.warehouseId,
+        query.threshold
+      );
+
+      return {
+        status: 200,
+        data: report,
+      };
+    } catch (error: any) {
+      return {
+        status: 500,
+        message: error.message || "خطا در دریافت گزارش موجودی کم",
+      };
+    }
+  }
+
+  /**
+   * توضیح فارسی: دریافت داشبورد کامل (همه گزارش‌ها)
+   */
+  @Get("/dashboard")
+  async getDashboard(
+    @Query({
+      schema: z.object({
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+      }),
+    })
+    query: { startDate?: string; endDate?: string }
+  ): Promise<Response> {
+    try {
+      const startDate = query.startDate ? new Date(query.startDate) : undefined;
+      const endDate = query.endDate ? new Date(query.endDate) : undefined;
+
+      // کامنت: دریافت همه گزارش‌های اصلی
+      const [
+        salesSummary,
+        orderStatusReport,
+        deliveryStatusReport,
+        inventorySummary,
+        lowStockReport,
+      ] = await Promise.all([
+        this.salesReportService.getSalesSummary(startDate, endDate),
+        this.orderReportService.getOrderStatusReport(startDate, endDate),
+        this.orderReportService.getDeliveryStatusReport(startDate, endDate),
+        this.inventoryReportService.getInventorySummary(),
+        this.inventoryReportService.getLowStockReport(),
+      ]);
+
+      return {
+        status: 200,
+        data: {
+          sales: salesSummary,
+          orders: {
+            status: orderStatusReport,
+            delivery: deliveryStatusReport,
+          },
+          inventory: {
+            summary: inventorySummary,
+            lowStock: lowStockReport,
+          },
+        },
+      };
+    } catch (error: any) {
+      return {
+        status: 500,
+        message: error.message || "خطا در دریافت داشبورد",
+      };
+    }
+  }
+}
+
+const report = new ReportController("/admin/report", {});
+export default report;
+

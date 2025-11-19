@@ -67,6 +67,7 @@ import address from "../admin/controllers/address";
 import courier from "./controllers/courier";
 import productVariant from "./controllers/productVariant";
 import productWarranty from "./controllers/productWarranty";
+import report from "./controllers/report";
 
 category.log = true;
 article.addMiddlewares("/content/video", "post", parser("youtube"));
@@ -118,6 +119,7 @@ backup.loginRequired = true;
 backupLog.loginRequired = true;
 log.loginRequired = true;
 product.loginRequired = true;
+report.loginRequired = true;
 // variant.loginRequired = true;
 
 export var adminPart = new Part("/admin", {
@@ -136,6 +138,7 @@ export var adminPart = new Part("/admin", {
         courier,
         productVariant,
         productWarranty,
+        report,
 
         // productDiscount,
         // brandFeatureValues,
