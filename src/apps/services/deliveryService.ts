@@ -6,6 +6,7 @@ import OrderRepository from "../../repositories/admin/order/repository";
 import PackageRepository from "../../repositories/admin/package/repository";
 import CourierRepository from "../../repositories/admin/courier/repository";
 import AddressRepository from "../../repositories/admin/address/repository";
+import OrderStatusService from "./orderStatusService";
 import { Types } from "mongoose";
 
 /**
@@ -17,12 +18,14 @@ export default class DeliveryService {
     private packageRepo: PackageRepository;
     private courierRepo: CourierRepository;
     private addressRepo: AddressRepository;
+    private orderStatusService: OrderStatusService;
 
     constructor() {
         this.orderRepo = new OrderRepository();
         this.packageRepo = new PackageRepository();
         this.courierRepo = new CourierRepository();
         this.addressRepo = new AddressRepository();
+        this.orderStatusService = new OrderStatusService();
     }
 
     /**
@@ -144,6 +147,12 @@ export default class DeliveryService {
                     deliveryStatus: "assigned",
                 },
             });
+            // کامنت: همگام‌سازی وضعیت سفارش با وضعیت ارسال
+            try {
+                await this.orderStatusService.syncStatusWithDelivery(packageDoc.order as string);
+            } catch (error: any) {
+                console.error("خطا در همگام‌سازی وضعیت سفارش:", error);
+            }
         }
 
         // کامنت: به‌روزرسانی وضعیت پیک (در صورت نیاز)
@@ -242,6 +251,12 @@ export default class DeliveryService {
                     deliveryStatus: orderStatusMap[status],
                 },
             });
+            // کامنت: همگام‌سازی وضعیت سفارش با وضعیت ارسال
+            try {
+                await this.orderStatusService.syncStatusWithDelivery(updatedPackage.order as string);
+            } catch (error: any) {
+                console.error("خطا در همگام‌سازی وضعیت سفارش:", error);
+            }
         }
 
         return updatedPackage as Package;

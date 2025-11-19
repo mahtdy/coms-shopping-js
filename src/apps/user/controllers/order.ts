@@ -12,6 +12,7 @@ import { Body, Query, User } from "../../../core/decorators/parameters";
 import { UserInfo } from "../../../core/mongoose-controller/auth/user/userAuthenticator";
 import BasketOrderService, { CheckoutMeta } from "../../services/basketOrderService";
 import DeliveryService from "../../services/deliveryService";
+import OrderStatusService from "../../services/orderStatusService";
 
 export class OrderController extends BaseController<Order> {
   proRepo: ProductRepository;
@@ -19,6 +20,7 @@ export class OrderController extends BaseController<Order> {
   orderRepo: OrderRepository;
   basketOrderService: BasketOrderService;
   deliveryService: DeliveryService;
+  orderStatusService: OrderStatusService;
   
   constructor(
     baseRoute: string,
@@ -33,6 +35,8 @@ export class OrderController extends BaseController<Order> {
     this.basketOrderService = new BasketOrderService();
     // کامنت: استفاده از سرویس ارسال برای رهگیری
     this.deliveryService = new DeliveryService();
+    // کامنت: استفاده از سرویس مدیریت وضعیت
+    this.orderStatusService = new OrderStatusService();
   }
   // eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoi2K3Ys9mGIiwiZmFtaWx5Ijoi2YXYrdmF2K_bjCIsImlkIjoiNjRiOTJiZDliYTI5YWFjZTMxMjliM2RlIiwicGhvbmVOdW1iZXIiOiIwOTM1ODcwMzUzNCIsImVtYWlsIjoiaC5tb2hhbW1hZGkuMjQ3N0BnbWFpbC5jb20iLCJpYXQiOjE3MjY2NDU3ODl9.IMnS_9ACJlV86lu1CI1z39-cd86wWRZ4oI0wmAWE3Jo
   // @PreExec({
@@ -134,6 +138,47 @@ export class OrderController extends BaseController<Order> {
       return {
         status: 500,
         message: error.message || "خطا در رهگیری بسته",
+      };
+    }
+  }
+
+  /**
+   * توضیح فارسی: دریافت تاریخچه تغییرات وضعیت یک سفارش
+   */
+  @Get("/:orderId/status-history", {
+    loginRequired: true,
+  })
+  async getOrderStatusHistory(
+    @Query({destination: "orderId", schema: BaseController.id}) orderId: string,
+    @User() user: UserInfo
+  ): Promise<Response> {
+    try {
+      // کامنت: بررسی اینکه سفارش متعلق به کاربر است
+      const order = await this.orderRepo.findById(orderId);
+      if (!order) {
+        return {
+          status: 404,
+          message: "سفارش یافت نشد.",
+        };
+      }
+
+      if (order.user.toString() !== user.id) {
+        return {
+          status: 403,
+          message: "شما دسترسی به این سفارش ندارید.",
+        };
+      }
+
+      const history = await this.orderStatusService.getOrderStatusHistory(orderId);
+
+      return {
+        status: 200,
+        data: history,
+      };
+    } catch (error: any) {
+      return {
+        status: 500,
+        message: error.message || "خطا در دریافت تاریخچه وضعیت",
       };
     }
   }

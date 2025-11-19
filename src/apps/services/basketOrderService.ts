@@ -16,6 +16,8 @@ import ShippingService, { SendType, SendTime } from "./shippingService";
 import DiscountService from "./discountService";
 import TaxService from "./taxService";
 import InventoryService from "./inventoryService";
+import OrderStatusService from "./orderStatusService";
+import { UserModel } from "../../core/mongoose-controller/repositories/user/model";
 
 /**
  * توضیح: ورودی‌های مربوط به جزئیات ارسال و پرداخت توسط این اینترفیس دریافت می‌شود.
@@ -59,6 +61,7 @@ export default class BasketOrderService {
   private discountService: DiscountService;
   private taxService: TaxService;
   private inventoryService: InventoryService;
+  private orderStatusService: OrderStatusService;
 
   constructor() {
     this.basketRepo = new BasketRepository();
@@ -75,6 +78,8 @@ export default class BasketOrderService {
     this.taxService = new TaxService();
     // کامنت: استفاده از سرویس موجودی برای مدیریت ورود/خروج و تاریخچه
     this.inventoryService = new InventoryService();
+    // کامنت: استفاده از سرویس مدیریت وضعیت سفارش
+    this.orderStatusService = new OrderStatusService();
   }
 
   /**
@@ -261,6 +266,29 @@ export default class BasketOrderService {
 
     // کامنت: شماره فاکتور به صورت خودکار در OrderRepository.generateOrderNumber() تولید می‌شود
     const order = await this.orderRepo.insert(orderPayload as Order);
+
+    // کامنت: ثبت تاریخچه وضعیت "pending" و ارسال اعلان
+    // کامنت: چون orderStatus در orderPayload به "pending" تنظیم شده، باید مستقیماً تاریخچه را ثبت کنیم
+    try {
+      await this.orderStatusService.recordInitialStatus(
+        order._id.toString(),
+        "pending",
+        "ثبت سفارش جدید"
+      );
+      
+      // کامنت: ارسال اعلان
+      const userDoc = await UserModel.findById(userId);
+      if (userDoc) {
+        await this.orderStatusService.sendStatusChangeNotification(
+          order,
+          undefined as any,
+          "pending"
+        );
+      }
+    } catch (error: any) {
+      // کامنت: خطای ثبت تاریخچه نباید باعث شکست checkout شود
+      console.error("خطا در ثبت تاریخچه وضعیت:", error);
+    }
 
     // بعد از ثبت سفارش، سبد خالی می‌شود تا داده تکراری نباشد.
     if (basketDocument?._id) {
