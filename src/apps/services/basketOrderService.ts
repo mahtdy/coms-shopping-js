@@ -12,6 +12,9 @@ import { UserInfo } from "../../../core/mongoose-controller/auth/user/userAuthen
 import PaymentService, { PaymentIntent } from "./paymentService";
 import DeliveryService from "./deliveryService";
 import Package from "../../../repositories/admin/package/model";
+import ShippingService, { SendType, SendTime } from "./shippingService";
+import DiscountService from "./discountService";
+import TaxService from "./taxService";
 
 /**
  * توضیح: ورودی‌های مربوط به جزئیات ارسال و پرداخت توسط این اینترفیس دریافت می‌شود.
@@ -30,8 +33,12 @@ export interface CheckoutMeta {
 export interface OrderCreationResult {
   order: Order;
   totals: {
-    totalPriceProducts: number;
-    totalCost: number;
+    totalPriceProducts: number;  // قیمت کل محصولات (قبل از تخفیف)
+    totalCost: number;            // هزینه کل (خرید)
+    discountAmount: number;       // مقدار تخفیف
+    shippingCost: number;         // هزینه ارسال
+    taxAmount: number;            // مالیات
+    finalTotal: number;           // مبلغ نهایی قابل پرداخت
   };
   paymentIntent: PaymentIntent;
   package?: Package; // کامنت: بسته ارسالی (در صورت وجود آدرس)
@@ -47,6 +54,9 @@ export default class BasketOrderService {
   private addressRepo: AddressRepository;
   private paymentService: PaymentService;
   private deliveryService: DeliveryService;
+  private shippingService: ShippingService;
+  private discountService: DiscountService;
+  private taxService: TaxService;
 
   constructor() {
     this.basketRepo = new BasketRepository();
@@ -57,6 +67,10 @@ export default class BasketOrderService {
     this.paymentService = new PaymentService();
     // کامنت: استفاده از سرویس ارسال برای مدیریت بسته‌ها
     this.deliveryService = new DeliveryService();
+    // کامنت: استفاده از سرویس‌های جدید برای محاسبه هزینه‌ها
+    this.shippingService = new ShippingService();
+    this.discountService = new DiscountService();
+    this.taxService = new TaxService();
   }
 
   /**
@@ -153,15 +167,94 @@ export default class BasketOrderService {
     }
 
     const preparedItems = await this.prepareItems(items);
+    let totalPriceProducts = preparedItems.totals.totalPriceProducts;
 
+    // کامنت: محاسبه هزینه ارسال
+    let shippingCost = 0;
+    let userAddress: Address | null = null;
+    if (addressId && meta.sendType) {
+      try {
+        userAddress = await this.addressRepo.findById(addressId);
+        if (userAddress) {
+          const sendType = (meta.sendType as SendType) || 1;
+          const sendTime = (meta.sendTime as SendTime) || 2;
+          const isBig = meta.isBig === 1 || meta.isBig === true;
+          
+          shippingCost = this.shippingService.calculateShippingCost(
+            userAddress,
+            sendType,
+            sendTime,
+            isBig
+          );
+        }
+      } catch (error: any) {
+        console.error("خطا در محاسبه هزینه ارسال:", error);
+        // در صورت خطا، هزینه ارسال صفر می‌ماند
+      }
+    }
+
+    // کامنت: اعمال کد تخفیف
+    let discountAmount = 0;
+    let discountCode: string | undefined;
+    if (meta.offCode && user) {
+      try {
+        const discountResult = await this.discountService.applyDiscountCode(
+          meta.offCode,
+          totalPriceProducts,
+          user,
+          preparedItems.items
+        );
+
+        if (discountResult.isValid) {
+          discountAmount = discountResult.discountAmount;
+          discountCode = discountResult.discount.disCode || meta.offCode;
+          totalPriceProducts = discountResult.finalPrice;
+
+          // کامنت: کاهش تعداد استفاده از کد تخفیف
+          if (discountResult.discount._id) {
+            await this.discountService.decreaseUsageCount(
+              discountResult.discount._id as string
+            );
+          }
+        }
+      } catch (error: any) {
+        console.error("خطا در اعمال کد تخفیف:", error);
+        // در صورت خطا، تخفیف اعمال نمی‌شود
+      }
+    }
+
+    // کامنت: محاسبه مالیات (بر اساس قیمت پس از تخفیف)
+    const taxResult = this.taxService.calculateTax(totalPriceProducts);
+    const taxAmount = taxResult.totalTaxAmount;
+
+    // کامنت: محاسبه مبلغ نهایی
+    // finalTotal = totalPriceProducts (پس از تخفیف) + shippingCost + taxAmount
+    const finalTotal = totalPriceProducts + shippingCost + taxAmount;
+
+    // کامنت: آماده‌سازی payload سفارش با همه محاسبات
     const orderPayload: Partial<Order> = {
       user: userId,
       orderList: preparedItems.items,
       totalCost: preparedItems.totals.totalCost,
-      totalPriceProducts: preparedItems.totals.totalPriceProducts,
+      totalPriceProducts: preparedItems.totals.totalPriceProducts, // قیمت قبل از تخفیف
       address: addressId,
+      orderStatus: "pending", // وضعیت اولیه
+      
+      // کامنت: محاسبات مالی
+      discountAmount,
+      discountCode,
+      shippingCost,
+      taxAmount,
+      finalTotal,
+      
+      // کامنت: جزئیات ارسال
+      sendType: meta.sendType,
+      sendTime: meta.sendTime,
+      sendDate: meta.sendDate,
+      isBig: meta.isBig === 1 || meta.isBig === true,
     };
 
+    // کامنت: شماره فاکتور به صورت خودکار در OrderRepository.generateOrderNumber() تولید می‌شود
     const order = await this.orderRepo.insert(orderPayload as Order);
 
     // بعد از ثبت سفارش، سبد خالی می‌شود تا داده تکراری نباشد.
@@ -181,12 +274,13 @@ export default class BasketOrderService {
       email: "",
     };
     
+    // کامنت: استفاده از مبلغ نهایی (finalTotal) برای پرداخت
     const paymentIntent = await this.paymentService.initiatePayment(
       order,
-      preparedItems.totals.totalPriceProducts,
+      finalTotal, // مبلغ نهایی شامل همه هزینه‌ها
       userInfo,
       {
-        description: `پرداخت سفارش ${order._id}`,
+        description: `پرداخت سفارش ${order.orderNumber || order._id}`,
         callbackUrl: process.env.PAYMENT_CALLBACK_URL || `http://localhost:7000/user/payment/callback`,
       }
     );
@@ -205,7 +299,14 @@ export default class BasketOrderService {
 
     return {
       order,
-      totals: preparedItems.totals,
+      totals: {
+        totalPriceProducts: preparedItems.totals.totalPriceProducts, // قیمت قبل از تخفیف
+        totalCost: preparedItems.totals.totalCost,
+        discountAmount,
+        shippingCost,
+        taxAmount,
+        finalTotal,
+      },
       paymentIntent,
       package: packageDoc, // کامنت: بسته ارسالی (در صورت وجود)
     };

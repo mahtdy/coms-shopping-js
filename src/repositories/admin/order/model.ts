@@ -18,9 +18,30 @@ export default interface Order extends Document {
   }[];
   totalCost: number;         // هزینه کل (خرید + جاری)
   totalPriceProducts: number; // قیمت کل محصولات
+  
+  // کامنت: شماره فاکتور و وضعیت
+  orderNumber?: string;      // شماره فاکتور (ORD-2025-0001)
+  orderStatus?: "pending" | "confirmed" | "processing" | "completed" | "cancelled"; // وضعیت سفارش
+  
+  // کامنت: آدرس و بسته
   address?: string | Address; // آدرس ارسال سفارش (اختیاری)
-  package?: string | Package; // کامنت: بسته ارسالی (اختیاری)
-  deliveryStatus?: "pending" | "preparing" | "assigned" | "in_transit" | "delivered" | "failed"; // کامنت: وضعیت ارسال
+  package?: string | Package; // بسته ارسالی (اختیاری)
+  deliveryStatus?: "pending" | "preparing" | "assigned" | "in_transit" | "delivered" | "failed"; // وضعیت ارسال
+  
+  // کامنت: محاسبات مالی
+  discountAmount?: number;    // مقدار تخفیف (به تومان)
+  discountCode?: string;      // کد تخفیف استفاده شده
+  shippingCost?: number;      // هزینه ارسال
+  taxAmount?: number;         // مالیات
+  packagingCost?: number;    // هزینه بسته‌بندی
+  finalTotal?: number;       // مبلغ نهایی قابل پرداخت
+  
+  // کامنت: جزئیات ارسال
+  sendType?: number;          // نوع ارسال (1: عادی, 2: پیک موتوری, ...)
+  sendTime?: number;          // زمان ارسال (1: فوری, 2: عادی, 3: استاندارد)
+  sendDate?: number;         // تاریخ ارسال
+  isBig?: boolean;            // بسته بزرگ
+  
   createdAt: Date;
 }
 
@@ -36,13 +57,38 @@ const orderSchema = new Schema({
   ],
   totalCost: { type: Number, required: true, default: 0 },
   totalPriceProducts: { type: Number, required: true, default: 0 },
+  
+  // کامنت: شماره فاکتور و وضعیت
+  orderNumber: { type: String, unique: true, sparse: true }, // شماره فاکتور
+  orderStatus: {
+    type: String,
+    enum: ["pending", "confirmed", "processing", "completed", "cancelled"],
+    default: "pending"
+  }, // وضعیت سفارش
+  
+  // کامنت: آدرس و بسته
   address: { type: Types.ObjectId, required: false, ref: "address" }, // آدرس ارسال سفارش
-  package: { type: Types.ObjectId, required: false, ref: "package" }, // کامنت: بسته ارسالی
+  package: { type: Types.ObjectId, required: false, ref: "package" }, // بسته ارسالی
   deliveryStatus: { 
     type: String, 
     enum: ["pending", "preparing", "assigned", "in_transit", "delivered", "failed"],
     default: "pending"
-  }, // کامنت: وضعیت ارسال
+  }, // وضعیت ارسال
+  
+  // کامنت: محاسبات مالی
+  discountAmount: { type: Number, default: 0 }, // مقدار تخفیف
+  discountCode: { type: String }, // کد تخفیف استفاده شده
+  shippingCost: { type: Number, default: 0 }, // هزینه ارسال
+  taxAmount: { type: Number, default: 0 }, // مالیات
+  packagingCost: { type: Number, default: 0 }, // هزینه بسته‌بندی
+  finalTotal: { type: Number, default: 0 }, // مبلغ نهایی قابل پرداخت
+  
+  // کامنت: جزئیات ارسال
+  sendType: { type: Number }, // نوع ارسال
+  sendTime: { type: Number }, // زمان ارسال
+  sendDate: { type: Number }, // تاریخ ارسال
+  isBig: { type: Boolean, default: false }, // بسته بزرگ
+  
   createdAt: { type: Date, default: Date.now },
 });
 

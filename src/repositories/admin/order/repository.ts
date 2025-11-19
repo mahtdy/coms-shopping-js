@@ -7,11 +7,44 @@ export default class OrderRepository extends BaseRepositoryService<Order> {
   constructor(options?: RepositoryConfigOptions) {
     super(OrderModel, options);
   }
-// }
-// src/repositories/admin/order/repository.ts
 
-// export default class OrderRepository {
+  /**
+   * توضیح فارسی: تولید شماره فاکتور خودکار
+   * فرمت: ORD-YYYY-NNNN (مثلاً ORD-2025-0001)
+   */
+  async generateOrderNumber(): Promise<string> {
+    const year = new Date().getFullYear();
+    const prefix = `ORD-${year}-`;
+
+    // کامنت: یافتن آخرین شماره فاکتور در سال جاری
+    const lastOrder = await OrderModel.findOne({
+      orderNumber: { $regex: `^${prefix}` },
+    })
+      .sort({ orderNumber: -1 })
+      .exec();
+
+    let sequence = 1;
+    if (lastOrder && lastOrder.orderNumber) {
+      // کامنت: استخراج شماره ترتیب از آخرین فاکتور
+      const lastSequence = parseInt(
+        lastOrder.orderNumber.replace(prefix, ""),
+        10
+      );
+      if (!isNaN(lastSequence)) {
+        sequence = lastSequence + 1;
+      }
+    }
+
+    // کامنت: فرمت کردن شماره با 4 رقم (0001, 0002, ...)
+    const orderNumber = `${prefix}${sequence.toString().padStart(4, "0")}`;
+    return orderNumber;
+  }
+
   async insert(data: Order): Promise<Order> {
+    // کامنت: اگر شماره فاکتور مشخص نشده باشد، تولید می‌کنیم
+    if (!data.orderNumber) {
+      data.orderNumber = await this.generateOrderNumber();
+    }
     const order = new OrderModel(data);
     return await order.save();
   }
