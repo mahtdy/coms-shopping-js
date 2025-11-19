@@ -9,12 +9,17 @@ import {Body, User} from "../../../core/decorators/parameters";
 import {UserInfo} from "../../../core/mongoose-controller/auth/user/userAuthenticator";
 import DiscountRepository from "../../../repositories/admin/discount/repository";
 import OrderRepository from "../../../repositories/admin/order/repository";
+import DiscountService, { ProductInfo } from "../../services/discountService";
+import ProductRepository from "../../../repositories/admin/product/repository";
 import {date, z} from "zod";
 import {now, random} from "lodash";
 import {time} from "speakeasy";
+import { Query } from "../../../core/decorators/parameters";
 
 export class DiscountController extends BaseController<Discount> {
     private orderRepo: OrderRepository;
+    private discountService: DiscountService;
+    private productRepo: ProductRepository;
 
     constructor(
         baseRoute: string,
@@ -23,6 +28,8 @@ export class DiscountController extends BaseController<Discount> {
     ) {
         super(baseRoute, repo, options);
         this.orderRepo = new OrderRepository();
+        this.discountService = new DiscountService();
+        this.productRepo = new ProductRepository();
     }
 
 
@@ -137,6 +144,88 @@ export class DiscountController extends BaseController<Discount> {
     @Get("/list")
     async getDiscountList(): Promise<Response> {
         const discounts = await this.repository.findAll({}, {sort: {createdAt: -1}});
+        return {status: 200, data: discounts};
+    }
+
+    /**
+     * توضیح فارسی: دریافت تخفیف‌های فعال برای یک محصول
+     */
+    @Get("/product/:productId")
+    async getProductDiscounts(
+        @Query({destination: "productId", schema: BaseController.id}) productId: string,
+        @Query({schema: z.object({
+            categoryId: BaseController.id.optional(),
+            brandId: BaseController.id.optional(),
+        })}) query: { categoryId?: string; brandId?: string }
+    ): Promise<Response> {
+        const product = await this.productRepo.findById(productId);
+        if (!product) {
+            return {status: 404, message: "محصول یافت نشد."};
+        }
+
+        const discounts = await this.discountService.getProductDiscounts(
+            productId,
+            query.categoryId || (product.category as string),
+            query.brandId || (product.brand as string)
+        );
+
+        return {status: 200, data: discounts};
+    }
+
+    /**
+     * توضیح فارسی: محاسبه قیمت نهایی محصول با تخفیف‌ها
+     */
+    @Get("/product/:productId/price")
+    async calculateProductPrice(
+        @Query({destination: "productId", schema: BaseController.id}) productId: string,
+        @Query({schema: z.object({
+            categoryId: BaseController.id.optional(),
+            brandId: BaseController.id.optional(),
+        })}) query: { categoryId?: string; brandId?: string }
+    ): Promise<Response> {
+        const product = await this.productRepo.findById(productId);
+        if (!product) {
+            return {status: 404, message: "محصول یافت نشد."};
+        }
+
+        const result = await this.discountService.calculateProductFinalPrice(
+            productId,
+            product.price,
+            query.categoryId || (product.category as string),
+            query.brandId || (product.brand as string)
+        );
+
+        return {status: 200, data: result};
+    }
+
+    /**
+     * توضیح فارسی: دریافت تخفیف‌های فعال (برای داشبورد)
+     */
+    @Get("/active")
+    async getActiveDiscounts(): Promise<Response> {
+        const now = new Date();
+        const discounts = await this.repository.find({
+            isActive: true,
+            disStart: {$lte: now},
+            disEnd: {$gte: now},
+        });
+
+        return {status: 200, data: discounts};
+    }
+
+    /**
+     * توضیح فارسی: دریافت تخفیف‌های event-based
+     */
+    @Get("/events")
+    async getEventDiscounts(): Promise<Response> {
+        const now = new Date();
+        const discounts = await this.repository.find({
+            isActive: true,
+            autoApplyOnEvent: true,
+            eventStart: {$lte: now},
+            eventEnd: {$gte: now},
+        });
+
         return {status: 200, data: discounts};
     }
 }
