@@ -6,17 +6,19 @@ import Order, { OrderModel } from "../../../repositories/admin/order/model";
 import z from "zod";
 import ProductRepository from "../../../repositories/admin/product/repository";
 import ProductWarehouseRepository from "../../../repositories/admin/productWarehouse/repository";
-import { Post } from "../../../core/decorators/method";
+import { Get, Post } from "../../../core/decorators/method";
 import { Response } from "../../../core/controller";
-import { Body, User } from "../../../core/decorators/parameters";
+import { Body, Query, User } from "../../../core/decorators/parameters";
 import { UserInfo } from "../../../core/mongoose-controller/auth/user/userAuthenticator";
 import BasketOrderService, { CheckoutMeta } from "../../services/basketOrderService";
+import DeliveryService from "../../services/deliveryService";
 
 export class OrderController extends BaseController<Order> {
   proRepo: ProductRepository;
   prowareRepo: ProductWarehouseRepository;
   orderRepo: OrderRepository;
   basketOrderService: BasketOrderService;
+  deliveryService: DeliveryService;
   
   constructor(
     baseRoute: string,
@@ -29,6 +31,8 @@ export class OrderController extends BaseController<Order> {
     this.prowareRepo = new ProductWarehouseRepository();
     // کامنت: استفاده از سرویس مشترک برای تبدیل سبد به سفارش
     this.basketOrderService = new BasketOrderService();
+    // کامنت: استفاده از سرویس ارسال برای رهگیری
+    this.deliveryService = new DeliveryService();
   }
   // eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoi2K3Ys9mGIiwiZmFtaWx5Ijoi2YXYrdmF2K_bjCIsImlkIjoiNjRiOTJiZDliYTI5YWFjZTMxMjliM2RlIiwicGhvbmVOdW1iZXIiOiIwOTM1ODcwMzUzNCIsImVtYWlsIjoiaC5tb2hhbW1hZGkuMjQ3N0BnbWFpbC5jb20iLCJpYXQiOjE3MjY2NDU3ODl9.IMnS_9ACJlV86lu1CI1z39-cd86wWRZ4oI0wmAWE3Jo
   // @PreExec({
@@ -98,6 +102,39 @@ export class OrderController extends BaseController<Order> {
         };
       }
       throw error;
+    }
+  }
+
+  /**
+   * توضیح فارسی: رهگیری بسته با کد رهگیری
+   */
+  @Get("/track", {})
+  async trackOrder(
+    @Query({destination: "trackingCode", schema: z.string()}) trackingCode: string
+  ): Promise<Response> {
+    try {
+      const trackingResult = await this.deliveryService.trackPackage(trackingCode);
+
+      if (!trackingResult.package) {
+        return {
+          status: 404,
+          message: "بسته با کد رهگیری مشخص شده یافت نشد.",
+        };
+      }
+
+      return {
+        status: 200,
+        data: {
+          package: trackingResult.package,
+          order: trackingResult.order,
+          courier: trackingResult.courier,
+        },
+      };
+    } catch (error: any) {
+      return {
+        status: 500,
+        message: error.message || "خطا در رهگیری بسته",
+      };
     }
   }
   //

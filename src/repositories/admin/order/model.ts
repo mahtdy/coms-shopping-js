@@ -4,6 +4,7 @@ import Product from "../product/model";
 import Productwarehouse from "../productWarehouse/model";
 import Basket from "../basket/model";
 import Address from "../address/model";
+import Package from "../package/model";
 import { string } from "zod";
 
 // const uniqueValidator = require("mongoose-unique-validator");
@@ -18,6 +19,8 @@ export default interface Order extends Document {
   totalCost: number;         // هزینه کل (خرید + جاری)
   totalPriceProducts: number; // قیمت کل محصولات
   address?: string | Address; // آدرس ارسال سفارش (اختیاری)
+  package?: string | Package; // کامنت: بسته ارسالی (اختیاری)
+  deliveryStatus?: "pending" | "preparing" | "assigned" | "in_transit" | "delivered" | "failed"; // کامنت: وضعیت ارسال
   createdAt: Date;
 }
 
@@ -34,6 +37,12 @@ const orderSchema = new Schema({
   totalCost: { type: Number, required: true, default: 0 },
   totalPriceProducts: { type: Number, required: true, default: 0 },
   address: { type: Types.ObjectId, required: false, ref: "address" }, // آدرس ارسال سفارش
+  package: { type: Types.ObjectId, required: false, ref: "package" }, // کامنت: بسته ارسالی
+  deliveryStatus: { 
+    type: String, 
+    enum: ["pending", "preparing", "assigned", "in_transit", "delivered", "failed"],
+    default: "pending"
+  }, // کامنت: وضعیت ارسال
   createdAt: { type: Date, default: Date.now },
 });
 

@@ -9,14 +9,18 @@ import AdminRepository from "../../../core/mongoose-controller/repositories/admi
 import {AdminModel} from "../../../apps/admin/login";
 import {basePageZod, BasePageController} from "../../../core/mongoose-controller/basePage/controller";
 import {AdminInfo} from "../../../core/mongoose-controller/auth/admin/admin-logIn";
+import DeliveryService from "../../services/deliveryService";
 
 // Admin controller for courier management
 export class AdminCourierController extends BasePageController<Courier> {
     repo: CourierRepository;
+    deliveryService: DeliveryService;
 
     constructor(baseRoute: string, repo: CourierRepository, options: ControllerOptions) {
         super(baseRoute, repo, options);
         this.repo = repo;
+        // کامنت: استفاده از سرویس ارسال برای مدیریت بسته‌ها
+        this.deliveryService = new DeliveryService();
     }
 
     initApis() {
@@ -45,22 +49,121 @@ export class AdminCourierController extends BasePageController<Courier> {
     }
 
     /**
-     * Assign packages to courier (simple assign, real optimization is in worker)
-     * payload: { courierId, packageIds: [] }
+     * توضیح فارسی: تخصیص بسته‌ها به پیک
+     * این متد بسته‌ها را به یک پیک تخصیص می‌دهد.
      */
     @Post("/assign", {})
     async assignPackages(
-        @Body({destination: "courierId", schema: BaseController.id}) courierId: string,
-        @Body({destination: "packageIds", schema: z.array(BaseController.id)}) packageIds: string[]
-    ) {
-        // Here: simple DB update to set assignedTo on packages.
-        // Ideally use PackageRepository; keep it generic to avoid circular deps.
-        const PackageModel = require("../../../repositories/admin/package/model").default;
-        const res = await PackageModel.updateMany(
-            {_id: {$in: packageIds}},
-            {$set: {assignedTo: courierId, status: "assigned"}}
-        );
-        return {ok: true, modified: res.nModified || res.modifiedCount || 0};
+        @Body({
+            schema: z.object({
+                courierId: BaseController.id,
+                packageIds: z.array(BaseController.id),
+            })
+        })
+        data: { courierId: string; packageIds: string[] }
+    ): Promise<Response> {
+        try {
+            const results = [];
+            
+            // کامنت: تخصیص هر بسته به پیک
+            for (const packageId of data.packageIds) {
+                try {
+                    const result = await this.deliveryService.assignPackageToCourier(
+                        packageId,
+                        data.courierId
+                    );
+                    results.push({
+                        packageId,
+                        success: true,
+                        package: result.package,
+                    });
+                } catch (error: any) {
+                    results.push({
+                        packageId,
+                        success: false,
+                        error: error.message || "خطا در تخصیص بسته",
+                    });
+                }
+            }
+
+            const successCount = results.filter(r => r.success).length;
+            
+            return {
+                status: 200,
+                message: `${successCount} از ${data.packageIds.length} بسته با موفقیت تخصیص داده شد.`,
+                data: {
+                    total: data.packageIds.length,
+                    success: successCount,
+                    failed: data.packageIds.length - successCount,
+                    results,
+                },
+            };
+        } catch (error: any) {
+            return {
+                status: 500,
+                message: error.message || "خطا در تخصیص بسته‌ها",
+            };
+        }
+    }
+
+    /**
+     * توضیح فارسی: تخصیص خودکار بسته به نزدیک‌ترین پیک
+     */
+    @Post("/auto-assign", {})
+    async autoAssignPackage(
+        @Body({
+            schema: z.object({
+                packageId: BaseController.id,
+            })
+        })
+        data: { packageId: string }
+    ): Promise<Response> {
+        try {
+            const result = await this.deliveryService.autoAssignPackage(data.packageId);
+            
+            return {
+                status: 200,
+                message: "بسته با موفقیت به پیک تخصیص داده شد.",
+                data: {
+                    package: result.package,
+                    courier: result.courier,
+                },
+            };
+        } catch (error: any) {
+            if (error?.status) {
+                return {
+                    status: error.status,
+                    message: error.message,
+                };
+            }
+            throw error;
+        }
+    }
+
+    /**
+     * توضیح فارسی: دریافت لیست بسته‌های یک پیک
+     */
+    @Get("/packages", {})
+    async getCourierPackages(
+        @Query({destination: "courierId", schema: BaseController.id}) courierId: string,
+        @Query({destination: "status", schema: z.string().optional()}) status?: string
+    ): Promise<Response> {
+        try {
+            const packages = await this.deliveryService.getCourierPackages(
+                courierId,
+                status as any
+            );
+            
+            return {
+                status: 200,
+                data: packages,
+            };
+        } catch (error: any) {
+            return {
+                status: 500,
+                message: error.message || "خطا در دریافت بسته‌ها",
+            };
+        }
     }
 
     /**

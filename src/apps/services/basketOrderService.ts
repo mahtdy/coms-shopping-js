@@ -10,6 +10,8 @@ import Productwarehouse from "../../../repositories/admin/productWarehouse/model
 import Address from "../../../repositories/admin/address/model";
 import { UserInfo } from "../../../core/mongoose-controller/auth/user/userAuthenticator";
 import PaymentService, { PaymentIntent } from "./paymentService";
+import DeliveryService from "./deliveryService";
+import Package from "../../../repositories/admin/package/model";
 
 /**
  * توضیح: ورودی‌های مربوط به جزئیات ارسال و پرداخت توسط این اینترفیس دریافت می‌شود.
@@ -32,6 +34,7 @@ export interface OrderCreationResult {
     totalCost: number;
   };
   paymentIntent: PaymentIntent;
+  package?: Package; // کامنت: بسته ارسالی (در صورت وجود آدرس)
 }
 
 /**
@@ -43,6 +46,7 @@ export default class BasketOrderService {
   private productWarehouseRepo: ProductWarehouseRepository;
   private addressRepo: AddressRepository;
   private paymentService: PaymentService;
+  private deliveryService: DeliveryService;
 
   constructor() {
     this.basketRepo = new BasketRepository();
@@ -51,6 +55,8 @@ export default class BasketOrderService {
     this.addressRepo = new AddressRepository();
     // کامنت: استفاده از سرویس پرداخت واقعی (در حال حاضر MockPaymentGateway)
     this.paymentService = new PaymentService();
+    // کامنت: استفاده از سرویس ارسال برای مدیریت بسته‌ها
+    this.deliveryService = new DeliveryService();
   }
 
   /**
@@ -185,10 +191,23 @@ export default class BasketOrderService {
       }
     );
 
+    // کامنت: ایجاد بسته ارسالی در صورت وجود آدرس
+    let packageDoc: Package | undefined;
+    if (addressId) {
+      try {
+        packageDoc = await this.deliveryService.createPackageFromOrder(order);
+      } catch (error: any) {
+        // کامنت: اگر ایجاد بسته با خطا مواجه شد، لاگ می‌کنیم اما خطا نمی‌دهیم
+        // چون سفارش و پرداخت قبلاً انجام شده است
+        console.error("خطا در ایجاد بسته ارسالی:", error);
+      }
+    }
+
     return {
       order,
       totals: preparedItems.totals,
       paymentIntent,
+      package: packageDoc, // کامنت: بسته ارسالی (در صورت وجود)
     };
   }
 
