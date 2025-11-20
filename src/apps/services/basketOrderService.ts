@@ -1,4 +1,4 @@
-import { Types } from "mongoose";
+import { Types, startSession, ClientSession } from "mongoose";
 import { Response } from "../../../core/controller";
 import BasketRepository from "../../../repositories/admin/basket/repository";
 import OrderRepository from "../../../repositories/admin/order/repository";
@@ -135,6 +135,7 @@ export default class BasketOrderService {
 
   /**
    * توضیح فارسی: در این متد تمام عملیات (اعتبارسنجی، ثبت سفارش، پرداخت واقعی) انجام می‌شود.
+   * این متد از MongoDB Transaction استفاده می‌کند تا اطمینان حاصل شود که تمام عملیات به صورت اتمیک انجام می‌شوند.
    */
   private async createOrderTransaction(params: {
     userId: string;
@@ -144,6 +145,10 @@ export default class BasketOrderService {
     user?: UserInfo;
   }): Promise<OrderCreationResult> {
     const { userId, items, meta, basketDocument, user } = params;
+    
+    // کامنت: شروع MongoDB Transaction
+    const session = await startSession();
+    session.startTransaction();
 
     if (!items || items.length === 0) {
       throw {
@@ -181,9 +186,10 @@ export default class BasketOrderService {
       }
     }
 
-    // کامنت: آماده‌سازی آیتم‌ها و کاهش موجودی (قبل از ایجاد order)
-    const preparedItems = await this.prepareItems(items);
-    let totalPriceProducts = preparedItems.totals.totalPriceProducts;
+    // کامنت: محاسبات اولیه (خارج از Transaction)
+    // کامنت: این محاسبات فقط برای محاسبه قیمت هستند و تغییر دیتابیس نمی‌دهند
+    const priceCalculation = await this.calculatePrices(items);
+    let totalPriceProducts = priceCalculation.totalPriceProducts;
 
     // کامنت: محاسبه هزینه ارسال
     let shippingCost = 0;
@@ -218,7 +224,7 @@ export default class BasketOrderService {
           meta.offCode,
           totalPriceProducts,
           user,
-          preparedItems.items
+          priceCalculation.items
         );
 
         if (discountResult.isValid) {
@@ -247,12 +253,23 @@ export default class BasketOrderService {
     // finalTotal = totalPriceProducts (پس از تخفیف) + shippingCost + taxAmount
     const finalTotal = totalPriceProducts + shippingCost + taxAmount;
 
-    // کامنت: آماده‌سازی payload سفارش با همه محاسبات
-    const orderPayload: Partial<Order> = {
-      user: userId,
-      orderList: preparedItems.items,
-      totalCost: preparedItems.totals.totalCost,
-      totalPriceProducts: preparedItems.totals.totalPriceProducts, // قیمت قبل از تخفیف
+    // کامنت: شروع MongoDB Transaction برای عملیات حساس
+    const session = await startSession();
+    session.startTransaction();
+    
+    let order: Order;
+    let invoice: Invoice | undefined;
+    
+    try {
+      // کامنت: کاهش موجودی و آماده‌سازی آیتم‌ها (در Transaction)
+      const preparedItems = await this.prepareItems(items, undefined, session);
+      
+      // کامنت: آماده‌سازی payload سفارش با همه محاسبات
+      const orderPayload: Partial<Order> = {
+        user: userId,
+        orderList: preparedItems.items,
+        totalCost: preparedItems.totals.totalCost,
+        totalPriceProducts: preparedItems.totals.totalPriceProducts, // قیمت قبل از تخفیف
       address: addressId,
       orderStatus: "pending", // وضعیت اولیه
       
@@ -270,35 +287,59 @@ export default class BasketOrderService {
       isBig: meta.isBig === 1 || meta.isBig === true,
     };
 
-    // کامنت: شماره فاکتور به صورت خودکار در OrderRepository.generateOrderNumber() تولید می‌شود
-    const order = await this.orderRepo.insert(orderPayload as Order);
+        // کامنت: شماره فاکتور به صورت خودکار تولید می‌شود
+        const orderNumber = await this.orderRepo.generateOrderNumber();
+        orderPayload.orderNumber = orderNumber;
+        
+        // کامنت: ایجاد Order در Transaction
+        order = (await this.orderRepo.collection.create([orderPayload as Order], { session }))[0];
 
-    // کامنت: ایجاد فاکتور مالی از سفارش
-    let invoice;
-    try {
-      invoice = await this.invoiceService.createInvoiceFromOrder(order);
+      // کامنت: ایجاد فاکتور مالی از سفارش (در Transaction)
+      invoice = await this.invoiceService.createInvoiceFromOrder(order, session);
       
-      // کامنت: اتصال فاکتور به سفارش
-      await this.orderRepo.editById(order._id.toString(), {
-        $set: {
-          invoice: invoice._id,
-        },
-      });
-    } catch (error: any) {
-      // کامنت: خطای ایجاد فاکتور نباید باعث شکست checkout شود
-      console.error("خطا در ایجاد فاکتور:", error);
-    }
+      // کامنت: اتصال فاکتور به سفارش (در Transaction)
+      await this.orderRepo.collection.findByIdAndUpdate(
+        order._id,
+        { $set: { invoice: invoice._id } },
+        { session }
+      );
 
-    // کامنت: ثبت تاریخچه وضعیت "pending" و ارسال اعلان
-    // کامنت: چون orderStatus در orderPayload به "pending" تنظیم شده، باید مستقیماً تاریخچه را ثبت کنیم
-    try {
+      // کامنت: ثبت تاریخچه وضعیت "pending" (در Transaction)
       await this.orderStatusService.recordInitialStatus(
         order._id.toString(),
         "pending",
-        "ثبت سفارش جدید"
+        "ثبت سفارش جدید",
+        session
       );
-      
-      // کامنت: ارسال اعلان
+
+      // کامنت: خالی کردن سبد (در Transaction)
+      if (basketDocument?._id) {
+        await BasketModel.findByIdAndUpdate(
+          basketDocument._id,
+          { $set: { basketList: [] } },
+          { session }
+        );
+      }
+
+      // کامنت: Commit Transaction در صورت موفقیت
+      await session.commitTransaction();
+    } catch (error: any) {
+      // کامنت: Rollback Transaction در صورت خطا
+      await session.abortTransaction();
+      console.error("خطا در ایجاد سفارش (Transaction Rollback):", error);
+      throw {
+        status: error?.status || 500,
+        message: error?.message || "خطا در ایجاد سفارش. تمام تغییرات برگردانده شد.",
+        originalError: error,
+      };
+    } finally {
+      // کامنت: بستن Session
+      await session.endSession();
+    }
+
+    // کامنت: عملیات خارج از Transaction (بعد از commit موفق)
+    // کامنت: ارسال اعلان (خارج از Transaction)
+    try {
       const userDoc = await UserModel.findById(userId);
       if (userDoc) {
         await this.orderStatusService.sendStatusChangeNotification(
@@ -308,15 +349,8 @@ export default class BasketOrderService {
         );
       }
     } catch (error: any) {
-      // کامنت: خطای ثبت تاریخچه نباید باعث شکست checkout شود
-      console.error("خطا در ثبت تاریخچه وضعیت:", error);
-    }
-
-    // بعد از ثبت سفارش، سبد خالی می‌شود تا داده تکراری نباشد.
-    if (basketDocument?._id) {
-      await BasketModel.findByIdAndUpdate(basketDocument._id, {
-        $set: { basketList: [] },
-      });
+      // کامنت: خطای اعلان نباید باعث شکست checkout شود
+      console.error("خطا در ارسال اعلان:", error);
     }
 
     // کامنت: استفاده از سرویس پرداخت واقعی برای ایجاد پرداخت
@@ -352,11 +386,12 @@ export default class BasketOrderService {
       }
     }
 
+    // کامنت: استفاده از قیمت‌های محاسبه شده برای return
     return {
       order,
       totals: {
-        totalPriceProducts: preparedItems.totals.totalPriceProducts, // قیمت قبل از تخفیف
-        totalCost: preparedItems.totals.totalCost,
+        totalPriceProducts: priceCalculation.totals.totalPriceProducts, // قیمت قبل از تخفیف
+        totalCost: priceCalculation.totals.totalCost,
         discountAmount,
         shippingCost,
         taxAmount,
@@ -371,8 +406,9 @@ export default class BasketOrderService {
   /**
    * توضیح فارسی: برای هر آیتم سبد، موجودی انبار و قیمت نهایی محاسبه و رزرو می‌شود.
    * این متد از InventoryService استفاده می‌کند تا تاریخچه موجودی ثبت شود.
+   * @param session MongoDB Session برای Transaction (اختیاری)
    */
-  private async prepareItems(items: Order["orderList"], orderId?: string) {
+  private async prepareItems(items: Order["orderList"], orderId?: string, session?: ClientSession) {
     const prepared: Order["orderList"] = [];
     let totalPriceProducts = 0;
     let totalCost = 0;
@@ -436,7 +472,7 @@ export default class BasketOrderService {
           purchasePrice,
           reason: orderId ? `Order #${orderId}` : "Basket checkout",
           changeType: "sale",
-        });
+        }, session); // کامنت: ارسال session برای Transaction
 
         // کامنت: ذخیره اطلاعات برای برگشت در صورت خطا
         inventoryAdjustments.push({

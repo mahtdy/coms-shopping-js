@@ -1,7 +1,7 @@
 import Invoice, { InvoiceModel } from "../../core/mongoose-controller/repositories/invoice/model";
 import InvoiceRepository from "../../core/mongoose-controller/repositories/invoice/repository";
 import Order from "../../repositories/admin/order/model";
-import { Types } from "mongoose";
+import { Types, ClientSession } from "mongoose";
 
 /**
  * توضیح فارسی: سرویس ایجاد و مدیریت فاکتور
@@ -17,9 +17,10 @@ export default class InvoiceService {
   /**
    * توضیح فارسی: ایجاد فاکتور از سفارش
    * @param order سفارش ایجاد شده
+   * @param session MongoDB Session برای Transaction (اختیاری)
    * @returns فاکتور ایجاد شده
    */
-  async createInvoiceFromOrder(order: Order): Promise<Invoice> {
+  async createInvoiceFromOrder(order: Order, session?: ClientSession): Promise<Invoice> {
     // کامنت: محاسبه قیمت‌ها
     const netPrice = order.totalPriceProducts || 0; // قیمت خالص محصولات (قبل از تخفیف)
     const discountAmount = order.discountAmount || 0; // مقدار تخفیف
@@ -60,7 +61,17 @@ export default class InvoiceService {
     };
 
     // کامنت: ایجاد فاکتور (شماره فاکتور به صورت خودکار تولید می‌شود)
-    const invoice = await this.invoiceRepo.insert(invoiceData as Invoice);
+    let invoice: Invoice;
+    if (session) {
+      // کامنت: استفاده از session برای Transaction
+      // کامنت: باید شماره فاکتور را دستی تولید کنیم
+      const factorNumber = await this.invoiceRepo.getFactorNumber();
+      invoiceData.factorNumber = factorNumber.toString();
+      const [createdInvoice] = await InvoiceModel.create([invoiceData as Invoice], { session });
+      invoice = createdInvoice;
+    } else {
+      invoice = await this.invoiceRepo.insert(invoiceData as Invoice);
+    }
 
     return invoice;
   }

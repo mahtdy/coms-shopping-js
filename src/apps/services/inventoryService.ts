@@ -1,4 +1,4 @@
-import { Types } from "mongoose";
+import { Types, ClientSession } from "mongoose";
 import ProductWarehouseRepository from "../../repositories/admin/productWarehouse/repository";
 import InventoryHistoryRepository from "../../repositories/admin/inventoryHistory/repository";
 import Productwarehouse from "../../repositories/admin/productWarehouse/model";
@@ -69,8 +69,9 @@ export default class InventoryService {
 
   /**
    * افزایش یا کاهش موجودی انبار و ثبت تاریخچه.
+   * @param session MongoDB Session برای Transaction (اختیاری)
    */
-  async adjustStock(input: StockChangeInput): Promise<Productwarehouse> {
+  async adjustStock(input: StockChangeInput, session?: ClientSession): Promise<Productwarehouse> {
     const filter = this.buildInventoryFilter(input);
     const existing =
       (await this.productWarehouseRepo.collection
@@ -121,17 +122,25 @@ export default class InventoryService {
         {
           upsert: true,
           new: true,
+          session, // کامنت: استفاده از session برای Transaction
         }
       )
       .exec();
 
-    await this.historyRepo.create({
+    // کامنت: ثبت تاریخچه با session
+    const historyData = {
       inventory_id: updated._id,
       change_type: input.changeType,
       quantity_changed: input.quantityDelta,
       batch_number: input.batchNumber,
       reason: input.reason,
-    });
+    };
+    
+    if (session) {
+      await this.historyRepo.collection.create([historyData], { session });
+    } else {
+      await this.historyRepo.create(historyData);
+    }
 
     return updated;
   }

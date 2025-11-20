@@ -149,20 +149,28 @@ export default class OrderStatusService {
 
   /**
    * توضیح فارسی: ثبت تاریخچه بدون تغییر وضعیت (برای ثبت اولیه)
+   * @param session MongoDB Session برای Transaction (اختیاری)
    */
   async recordInitialStatus(
     orderId: string,
     status: OrderStatus,
-    reason?: string
+    reason?: string,
+    session?: any
   ): Promise<void> {
-    await this.historyRepo.create({
+    const historyData = {
       order: orderId,
       oldStatus: undefined,
       newStatus: status,
       changedBy: "system",
       reason: reason || "ثبت سفارش جدید",
       timestamp: new Date(),
-    });
+    };
+    
+    if (session) {
+      await this.historyRepo.collection.create([historyData], { session });
+    } else {
+      await this.historyRepo.create(historyData);
+    }
   }
 
   /**
