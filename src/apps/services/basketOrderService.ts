@@ -207,11 +207,15 @@ export default class BasketOrderService {
           const sendTime = (meta.sendTime as SendTime) || 2;
           const isBig = meta.isBig === 1 || meta.isBig === true;
           
-          shippingCost = this.shippingService.calculateShippingCost(
+          // کامنت: محاسبه هزینه ارسال با وزن و حجم واقعی
+          shippingCost = await this.shippingService.calculateShippingCost(
             userAddress,
             sendType,
             sendTime,
-            isBig
+            isBig,
+            undefined, // وزن (از orderList محاسبه می‌شود)
+            priceCalculation.items, // لیست محصولات برای محاسبه وزن و حجم
+            undefined // آدرس مبدا (از تنظیمات استفاده می‌شود)
           );
         }
       } catch (error: any) {
