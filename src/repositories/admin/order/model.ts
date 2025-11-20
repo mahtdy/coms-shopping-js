@@ -42,6 +42,9 @@ export default interface Order extends Document {
   sendDate?: number;         // تاریخ ارسال
   isBig?: boolean;            // بسته بزرگ
   
+  // کامنت: اتصال به فاکتور
+  invoice?: string | Types.ObjectId; // فاکتور مالی (اختیاری)
+  
   createdAt: Date;
 }
 
@@ -88,6 +91,9 @@ const orderSchema = new Schema({
   sendTime: { type: Number }, // زمان ارسال
   sendDate: { type: Number }, // تاریخ ارسال
   isBig: { type: Boolean, default: false }, // بسته بزرگ
+  
+  // کامنت: اتصال به فاکتور
+  invoice: { type: Types.ObjectId, required: false, ref: "invoice" }, // فاکتور مالی
   
   createdAt: { type: Date, default: Date.now },
 });

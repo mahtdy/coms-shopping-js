@@ -12,11 +12,13 @@ import { UserInfo } from "../../../core/mongoose-controller/auth/user/userAuthen
 import PaymentService, { PaymentIntent } from "./paymentService";
 import DeliveryService from "./deliveryService";
 import Package from "../../../repositories/admin/package/model";
+import Invoice from "../../core/mongoose-controller/repositories/invoice/model";
 import ShippingService, { SendType, SendTime } from "./shippingService";
 import DiscountService from "./discountService";
 import TaxService from "./taxService";
 import InventoryService from "./inventoryService";
 import OrderStatusService from "./orderStatusService";
+import InvoiceService from "./invoiceService";
 import { UserModel } from "../../core/mongoose-controller/repositories/user/model";
 
 /**
@@ -45,6 +47,7 @@ export interface OrderCreationResult {
   };
   paymentIntent: PaymentIntent;
   package?: Package; // کامنت: بسته ارسالی (در صورت وجود آدرس)
+  invoice?: Invoice; // کامنت: فاکتور مالی (در صورت ایجاد موفق)
 }
 
 /**
@@ -62,6 +65,7 @@ export default class BasketOrderService {
   private taxService: TaxService;
   private inventoryService: InventoryService;
   private orderStatusService: OrderStatusService;
+  private invoiceService: InvoiceService;
 
   constructor() {
     this.basketRepo = new BasketRepository();
@@ -80,6 +84,8 @@ export default class BasketOrderService {
     this.inventoryService = new InventoryService();
     // کامنت: استفاده از سرویس مدیریت وضعیت سفارش
     this.orderStatusService = new OrderStatusService();
+    // کامنت: استفاده از سرویس فاکتور
+    this.invoiceService = new InvoiceService();
   }
 
   /**
@@ -267,6 +273,22 @@ export default class BasketOrderService {
     // کامنت: شماره فاکتور به صورت خودکار در OrderRepository.generateOrderNumber() تولید می‌شود
     const order = await this.orderRepo.insert(orderPayload as Order);
 
+    // کامنت: ایجاد فاکتور مالی از سفارش
+    let invoice;
+    try {
+      invoice = await this.invoiceService.createInvoiceFromOrder(order);
+      
+      // کامنت: اتصال فاکتور به سفارش
+      await this.orderRepo.editById(order._id.toString(), {
+        $set: {
+          invoice: invoice._id,
+        },
+      });
+    } catch (error: any) {
+      // کامنت: خطای ایجاد فاکتور نباید باعث شکست checkout شود
+      console.error("خطا در ایجاد فاکتور:", error);
+    }
+
     // کامنت: ثبت تاریخچه وضعیت "pending" و ارسال اعلان
     // کامنت: چون orderStatus در orderPayload به "pending" تنظیم شده، باید مستقیماً تاریخچه را ثبت کنیم
     try {
@@ -342,6 +364,7 @@ export default class BasketOrderService {
       },
       paymentIntent,
       package: packageDoc, // کامنت: بسته ارسالی (در صورت وجود)
+      invoice, // کامنت: فاکتور مالی (در صورت ایجاد موفق)
     };
   }
 
