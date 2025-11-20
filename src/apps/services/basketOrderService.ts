@@ -19,6 +19,7 @@ import TaxService from "./taxService";
 import InventoryService from "./inventoryService";
 import OrderStatusService from "./orderStatusService";
 import InvoiceService from "./invoiceService";
+import PackagingService from "./packagingService";
 import { UserModel } from "../../core/mongoose-controller/repositories/user/model";
 
 /**
@@ -43,6 +44,7 @@ export interface OrderCreationResult {
     discountAmount: number;       // مقدار تخفیف
     shippingCost: number;         // هزینه ارسال
     taxAmount: number;            // مالیات
+    packagingCost: number;        // هزینه بسته‌بندی
     finalTotal: number;           // مبلغ نهایی قابل پرداخت
   };
   paymentIntent: PaymentIntent;
@@ -66,6 +68,7 @@ export default class BasketOrderService {
   private inventoryService: InventoryService;
   private orderStatusService: OrderStatusService;
   private invoiceService: InvoiceService;
+  private packagingService: PackagingService;
 
   constructor() {
     this.basketRepo = new BasketRepository();
@@ -86,6 +89,8 @@ export default class BasketOrderService {
     this.orderStatusService = new OrderStatusService();
     // کامنت: استفاده از سرویس فاکتور
     this.invoiceService = new InvoiceService();
+    // کامنت: استفاده از سرویس بسته‌بندی
+    this.packagingService = new PackagingService();
   }
 
   /**
@@ -249,9 +254,20 @@ export default class BasketOrderService {
     const taxResult = this.taxService.calculateTax(totalPriceProducts);
     const taxAmount = taxResult.totalTaxAmount;
 
+    // کامنت: محاسبه هزینه بسته‌بندی (بر اساس تعداد و نوع محصولات)
+    let packagingCost = 0;
+    try {
+      // کامنت: استفاده از لیست محصولات برای محاسبه دقیق هزینه بسته‌بندی
+      packagingCost = await this.packagingService.calculatePackagingCost(priceCalculation.items);
+    } catch (error: any) {
+      console.error("خطا در محاسبه هزینه بسته‌بندی:", error);
+      // کامنت: در صورت خطا، از محاسبه سریع استفاده می‌کنیم
+      packagingCost = this.packagingService.calculateQuickPackagingCost(items.length);
+    }
+
     // کامنت: محاسبه مبلغ نهایی
-    // finalTotal = totalPriceProducts (پس از تخفیف) + shippingCost + taxAmount
-    const finalTotal = totalPriceProducts + shippingCost + taxAmount;
+    // finalTotal = totalPriceProducts (پس از تخفیف) + shippingCost + taxAmount + packagingCost
+    const finalTotal = totalPriceProducts + shippingCost + taxAmount + packagingCost;
 
     // کامنت: شروع MongoDB Transaction برای عملیات حساس
     const session = await startSession();
@@ -273,12 +289,13 @@ export default class BasketOrderService {
       address: addressId,
       orderStatus: "pending", // وضعیت اولیه
       
-      // کامنت: محاسبات مالی
-      discountAmount,
-      discountCode,
-      shippingCost,
-      taxAmount,
-      finalTotal,
+        // کامنت: محاسبات مالی
+        discountAmount,
+        discountCode,
+        shippingCost,
+        taxAmount,
+        packagingCost,
+        finalTotal,
       
       // کامنت: جزئیات ارسال
       sendType: meta.sendType,
@@ -395,6 +412,7 @@ export default class BasketOrderService {
         discountAmount,
         shippingCost,
         taxAmount,
+        packagingCost,
         finalTotal,
       },
       paymentIntent,
