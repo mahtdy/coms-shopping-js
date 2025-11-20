@@ -12,6 +12,13 @@ export default interface OrderStatusHistory extends Document {
   reason?: string; // کامنت: دلیل تغییر وضعیت
   notes?: string; // کامنت: یادداشت‌های اضافی
   timestamp: Date; // کامنت: زمان تغییر
+  
+  // کامنت: فیلدهای اضافی برای ثبت کامل تغییرات
+  ipAddress?: string; // کامنت: آدرس IP درخواست کننده
+  userAgent?: string; // کامنت: User Agent مرورگر/اپلیکیشن
+  metadata?: Record<string, any>; // کامنت: اطلاعات اضافی (مثل deliveryStatus، packageId، ...)
+  duration?: number; // کامنت: مدت زمان در وضعیت قبلی (به میلی‌ثانیه)
+  isAutomatic?: boolean; // کامنت: آیا تغییر به صورت خودکار انجام شده است
 }
 
 const orderStatusHistorySchema = new Schema({
@@ -42,6 +49,23 @@ const orderStatusHistorySchema = new Schema({
   timestamp: {
     type: Date,
     default: Date.now,
+  },
+  // کامنت: فیلدهای اضافی برای ثبت کامل تغییرات
+  ipAddress: {
+    type: String,
+  },
+  userAgent: {
+    type: String,
+  },
+  metadata: {
+    type: Schema.Types.Mixed, // کامنت: برای ذخیره اطلاعات اضافی
+  },
+  duration: {
+    type: Number, // کامنت: مدت زمان در وضعیت قبلی (به میلی‌ثانیه)
+  },
+  isAutomatic: {
+    type: Boolean,
+    default: false, // کامنت: آیا تغییر به صورت خودکار انجام شده است
   },
 });
 

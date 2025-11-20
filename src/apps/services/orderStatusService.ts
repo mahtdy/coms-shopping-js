@@ -21,6 +21,10 @@ export interface ChangeStatusOptions {
   reason?: string;
   notes?: string;
   sendNotification?: boolean; // کامنت: آیا اعلان ارسال شود
+  ipAddress?: string; // کامنت: آدرس IP درخواست کننده
+  userAgent?: string; // کامنت: User Agent مرورگر/اپلیکیشن
+  metadata?: Record<string, any>; // کامنت: اطلاعات اضافی
+  isAutomatic?: boolean; // کامنت: آیا تغییر به صورت خودکار انجام شده است
 }
 
 /**
@@ -53,7 +57,18 @@ export default class OrderStatusService {
    * @returns نتیجه تغییر وضعیت
    */
   async changeOrderStatus(options: ChangeStatusOptions): Promise<StatusChangeResult> {
-    const { orderId, newStatus, changedBy, reason, notes, sendNotification = true } = options;
+    const {
+      orderId,
+      newStatus,
+      changedBy,
+      reason,
+      notes,
+      sendNotification = true,
+      ipAddress,
+      userAgent,
+      metadata,
+      isAutomatic = false,
+    } = options;
 
     // کامنت: دریافت سفارش
     const order = await this.orderRepo.findById(orderId);
@@ -82,6 +97,15 @@ export default class OrderStatusService {
       };
     }
 
+    // کامنت: محاسبه مدت زمان در وضعیت قبلی
+    let duration: number | undefined;
+    if (oldStatus) {
+      const lastHistory = await this.historyRepo.getLastStatusChange(orderId);
+      if (lastHistory && lastHistory.timestamp) {
+        duration = Date.now() - new Date(lastHistory.timestamp).getTime();
+      }
+    }
+
     // کامنت: به‌روزرسانی وضعیت سفارش
     const updatedOrder = await this.orderRepo.editById(orderId, {
       $set: {
@@ -96,8 +120,8 @@ export default class OrderStatusService {
       };
     }
 
-    // کامنت: ثبت تاریخچه
-    const historyRecord = await this.historyRepo.create({
+    // کامنت: ثبت تاریخچه کامل با تمام اطلاعات
+    const historyData: any = {
       order: orderId,
       oldStatus,
       newStatus,
@@ -105,7 +129,16 @@ export default class OrderStatusService {
       reason,
       notes,
       timestamp: new Date(),
-    });
+      isAutomatic,
+    };
+
+    // کامنت: افزودن فیلدهای اختیاری
+    if (ipAddress) historyData.ipAddress = ipAddress;
+    if (userAgent) historyData.userAgent = userAgent;
+    if (duration !== undefined) historyData.duration = duration;
+    if (metadata) historyData.metadata = metadata;
+
+    const historyRecord = await this.historyRepo.create(historyData);
 
     // کامنت: ارسال اعلان
     let notificationSent = false;
@@ -155,16 +188,23 @@ export default class OrderStatusService {
     orderId: string,
     status: OrderStatus,
     reason?: string,
-    session?: any
+    session?: any,
+    metadata?: Record<string, any>
   ): Promise<void> {
-    const historyData = {
+    const historyData: any = {
       order: orderId,
       oldStatus: undefined,
       newStatus: status,
       changedBy: "system",
       reason: reason || "ثبت سفارش جدید",
       timestamp: new Date(),
+      isAutomatic: true,
     };
+
+    // کامنت: افزودن metadata در صورت وجود
+    if (metadata) {
+      historyData.metadata = metadata;
+    }
     
     if (session) {
       await this.historyRepo.collection.create([historyData], { session });

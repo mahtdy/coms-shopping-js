@@ -3,7 +3,7 @@ import BaseController from "../../../core/mongoose-controller/controller";
 import {Response} from "../../../core/controller";
 
 import {Post, Put, Get} from "../../../core/decorators/method";
-import {Body, User, Query, Admin} from "../../../core/decorators/parameters";
+import {Body, User, Query, Admin, IP, Header} from "../../../core/decorators/parameters";
 import {UserInfo} from "../../../core/mongoose-controller/auth/user/userAuthenticator";
 import {AdminInfo} from "../../../core/mongoose-controller/auth/admin/admin-logIn";
 import Order from "../../../repositories/admin/order/model";
@@ -120,16 +120,21 @@ export class OrderController extends BaseController<Order> {
                 reason: z.string().optional(),
                 notes: z.string().optional(),
                 sendNotification: z.boolean().default(true),
-            }),
-        })
-        data: {
-            newStatus: "pending" | "confirmed" | "processing" | "completed" | "cancelled";
-            reason?: string;
-            notes?: string;
-            sendNotification?: boolean;
-        }
-    ): Promise<Response> {
-        try {
+            metadata: z.record(z.any()).optional(), // کامنت: اطلاعات اضافی
+        }),
+    })
+    data: {
+        newStatus: "pending" | "confirmed" | "processing" | "completed" | "cancelled";
+        reason?: string;
+        notes?: string;
+        sendNotification?: boolean;
+        metadata?: Record<string, any>;
+    },
+    @IP() ipAddress?: string, // کامنت: آدرس IP درخواست کننده
+    @Header("user-agent") userAgent?: string // کامنت: User Agent مرورگر/اپلیکیشن
+): Promise<Response> {
+    try {
+
             const result = await this.orderStatusService.changeOrderStatus({
                 orderId,
                 newStatus: data.newStatus,
@@ -137,6 +142,10 @@ export class OrderController extends BaseController<Order> {
                 reason: data.reason,
                 notes: data.notes,
                 sendNotification: data.sendNotification !== false,
+                ipAddress,
+                userAgent,
+                metadata: data.metadata,
+                isAutomatic: false,
             });
 
             return {
