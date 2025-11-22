@@ -2,6 +2,7 @@ import OrderRepository from "../../repositories/admin/order/repository";
 import Order from "../../repositories/admin/order/model";
 import ProductRepository from "../../repositories/admin/product/repository";
 import DiscountRepository from "../../repositories/admin/discount/repository";
+import ProductWarehouseRepository from "../../repositories/admin/productWarehouse/repository";
 
 /**
  * توضیح فارسی: سرویس گزارش‌دهی فروش
@@ -90,11 +91,13 @@ export default class SalesReportService {
   private orderRepo: OrderRepository;
   private productRepo: ProductRepository;
   private discountRepo: DiscountRepository;
+  private productWarehouseRepo: ProductWarehouseRepository;
 
   constructor() {
     this.orderRepo = new OrderRepository();
     this.productRepo = new ProductRepository();
     this.discountRepo = new DiscountRepository();
+    this.productWarehouseRepo = new ProductWarehouseRepository();
   }
 
   /**
@@ -303,7 +306,24 @@ export default class SalesReportService {
         const productData = productMap.get(productId)!;
         productData.totalQuantitySold += item.quantity;
         productData.totalRevenue += item.price * item.quantity;
-        // TODO: باید totalCost را از productwarehouse بگیریم
+        
+        // کامنت: محاسبه totalCost از purchasePrice در productwarehouse
+        const productWarehouseId = typeof item.productwarehouse === "string"
+          ? item.productwarehouse
+          : (item.productwarehouse as any)?._id?.toString() || (item.productwarehouse as any)?.toString();
+        
+        if (productWarehouseId) {
+          try {
+            const productWarehouse = await this.productWarehouseRepo.findById(productWarehouseId);
+            if (productWarehouse && productWarehouse.purchasePrice) {
+              productData.totalCost += productWarehouse.purchasePrice * item.quantity;
+            }
+          } catch (error) {
+            // کامنت: در صورت خطا، از قیمت فروش به عنوان fallback استفاده می‌کنیم
+            console.error(`خطا در دریافت purchasePrice برای productwarehouse ${productWarehouseId}:`, error);
+          }
+        }
+        
         productData.orderCount++;
         productData.prices.push(item.price);
       }

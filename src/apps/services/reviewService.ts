@@ -319,6 +319,21 @@ export default class ReviewService {
   }
 
   /**
+   * توضیح فارسی: دریافت همه نظرات با فیلترهای پیشرفته (برای پنل ادمین)
+   */
+  async getAllReviews(filters?: {
+    productId?: string;
+    userId?: string;
+    status?: "pending" | "approved" | "rejected";
+    rating?: number;
+    limit?: number;
+    skip?: number;
+    sortBy?: "newest" | "oldest" | "rating" | "helpful";
+  }) {
+    return this.reviewRepo.getAllReviews(filters);
+  }
+
+  /**
    * توضیح فارسی: بررسی آیا کاربر می‌تواند برای محصول نظر بدهد
    */
   async canUserReview(productId: string, userId: string): Promise<{

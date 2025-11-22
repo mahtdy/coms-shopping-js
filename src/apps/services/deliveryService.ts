@@ -197,8 +197,6 @@ export default class DeliveryService {
      * توضیح فارسی: یافتن نزدیک‌ترین پیک در دسترس
      */
     private async findNearestAvailableCourier(lat: number, lng: number): Promise<Courier | null> {
-        // کامنت: در حال حاضر ساده‌ترین روش: اولین پیک در دسترس
-        // در آینده می‌توان از GeoJSON queries استفاده کرد
         const availableCouriers = await this.courierRepo.find({
             status: "available",
         });
@@ -207,9 +205,76 @@ export default class DeliveryService {
             return null;
         }
 
-        // کامنت: در حال حاضر اولین پیک را برمی‌گردانیم
-        // TODO: محاسبه فاصله و انتخاب نزدیک‌ترین
-        return availableCouriers[0] as Courier;
+        // کامنت: محاسبه فاصله برای هر پیک و انتخاب نزدیک‌ترین
+        let nearestCourier: Courier | null = null;
+        let minDistance = Infinity;
+
+        for (const courier of availableCouriers) {
+            if (!courier.currentLocation || !courier.currentLocation.coordinates) {
+                continue; // کامنت: اگر موقعیت نداشته باشد، رد می‌شود
+            }
+
+            const courierLat = courier.currentLocation.coordinates[1]; // [lon, lat]
+            const courierLng = courier.currentLocation.coordinates[0];
+
+            // کامنت: محاسبه فاصله با استفاده از فرمول Haversine
+            const distance = this.calculateDistance(
+                { lat, lng },
+                { lat: courierLat, lng: courierLng }
+            );
+
+            if (distance < minDistance) {
+                minDistance = distance;
+                nearestCourier = courier as Courier;
+            }
+        }
+
+        // کامنت: اگر هیچ پیکی با موقعیت معتبر پیدا نشد، اولین پیک را برمی‌گردانیم
+        return nearestCourier || (availableCouriers[0] as Courier);
+    }
+
+    /**
+     * توضیح فارسی: محاسبه فاصله بین دو نقطه جغرافیایی (کیلومتر)
+     * استفاده از فرمول Haversine
+     */
+    private calculateDistance(
+        point1: { lat: number; lng: number },
+        point2: { lat: number; lng: number }
+    ): number {
+        // کامنت: بررسی اعتبار مختصات
+        if (
+            !point1 ||
+            !point2 ||
+            isNaN(point1.lat) ||
+            isNaN(point1.lng) ||
+            isNaN(point2.lat) ||
+            isNaN(point2.lng)
+        ) {
+            return Infinity; // کامنت: فاصله نامعتبر
+        }
+
+        const R = 6371; // شعاع زمین به کیلومتر
+        const dLat = this.toRad(point2.lat - point1.lat);
+        const dLon = this.toRad(point2.lng - point1.lng);
+
+        const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(this.toRad(point1.lat)) *
+                Math.cos(this.toRad(point2.lat)) *
+                Math.sin(dLon / 2) *
+                Math.sin(dLon / 2);
+
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const distance = R * c;
+
+        return distance;
+    }
+
+    /**
+     * توضیح فارسی: تبدیل درجه به رادیان
+     */
+    private toRad(degrees: number): number {
+        return degrees * (Math.PI / 180);
     }
 
     /**

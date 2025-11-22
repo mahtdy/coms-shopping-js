@@ -4,6 +4,7 @@ import { UserInfo } from "../../core/mongoose-controller/auth/user/userAuthentic
 import OrderRepository from "../../repositories/admin/order/repository";
 import ProductRepository from "../../repositories/admin/product/repository";
 import Product from "../../repositories/admin/product/model";
+import { UserModel } from "../../repositories/user/model";
 
 /**
  * توضیح فارسی: نتیجه اعمال تخفیف
@@ -254,10 +255,41 @@ export default class DiscountService {
 
     // کامنت: بررسی فیلترهای کاربر
     if (user) {
+      // کامنت: دریافت اطلاعات کامل کاربر از دیتابیس
+      let userGender: "male" | "female" | undefined;
+      let userAge: number | undefined;
+      
+      try {
+        const userDoc = await UserModel.findById(user.id).select("gender age birthDate");
+        if (userDoc) {
+          // کامنت: اگر فیلد gender وجود داشته باشد
+          if ((userDoc as any).gender) {
+            userGender = (userDoc as any).gender;
+          }
+          
+          // کامنت: محاسبه age از birthDate یا استفاده از فیلد age
+          if ((userDoc as any).age) {
+            userAge = (userDoc as any).age;
+          } else if ((userDoc as any).birthDate) {
+            const birthDate = new Date((userDoc as any).birthDate);
+            const today = new Date();
+            userAge = today.getFullYear() - birthDate.getFullYear();
+            const monthDiff = today.getMonth() - birthDate.getMonth();
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+              userAge--;
+            }
+          }
+        }
+      } catch (error) {
+        // کامنت: در صورت خطا، ادامه می‌دهیم بدون gender و age
+        console.error("خطا در دریافت اطلاعات کاربر:", error);
+      }
+      
       const userDiscountInfo: UserDiscountInfo = {
         userId: user.id,
         isFirstOrder: discount.firstInvoiceOnly,
-        // TODO: باید از user model اطلاعات gender و age را بگیریم
+        gender: userGender,
+        age: userAge,
       };
       if (!this.checkUserFilters(discount, userDiscountInfo)) {
         return {

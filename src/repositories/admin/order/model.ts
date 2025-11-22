@@ -46,6 +46,7 @@ export default interface Order extends Document {
   invoice?: string | Types.ObjectId; // فاکتور مالی (اختیاری)
   
   createdAt: Date;
+  updatedAt?: Date; // تاریخ آخرین به‌روزرسانی
 }
 
 const orderSchema = new Schema({
@@ -96,6 +97,7 @@ const orderSchema = new Schema({
   invoice: { type: Types.ObjectId, required: false, ref: "invoice" }, // فاکتور مالی
   
   createdAt: { type: Date, default: Date.now },
-});
+  updatedAt: { type: Date, default: Date.now },
+}, { timestamps: true });
 
 export const OrderModel = model<Order>("Order", orderSchema);

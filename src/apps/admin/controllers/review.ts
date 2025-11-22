@@ -44,24 +44,16 @@ export class AdminReviewController extends BaseController<any> {
     }
   ): Promise<Response> {
     try {
-      // TODO: پیاده‌سازی فیلتر در repository
-      const filter: any = {};
-      if (query.status) filter.status = query.status;
-      if (query.productId) filter.product = query.productId;
-      if (query.userId) filter.user = query.userId;
-      if (query.rating) filter.rating = query.rating;
-
-      // کامنت: در حال حاضر از getProductReviews استفاده می‌کنیم
-      // TODO: ایجاد متد getAllReviews در repository
-      const reviews = query.productId
-        ? await this.reviewService.getProductReviews(query.productId, {
-            status: query.status,
-            rating: query.rating,
-            limit: query.limit,
-            skip: query.skip,
-            sortBy: query.sortBy,
-          })
-        : [];
+      // کامنت: استفاده از متد getAllReviews در repository
+      const reviews = await this.reviewService.getAllReviews({
+        productId: query.productId,
+        userId: query.userId,
+        status: query.status,
+        rating: query.rating,
+        limit: query.limit,
+        skip: query.skip,
+        sortBy: query.sortBy,
+      });
 
       return {
         status: 200,
@@ -155,8 +147,8 @@ export class AdminReviewController extends BaseController<any> {
     query: { limit?: number; skip?: number }
   ): Promise<Response> {
     try {
-      // TODO: پیاده‌سازی متد getAllReviews در repository
-      const reviews = await this.reviewService.getProductReviews("", {
+      // کامنت: استفاده از متد getAllReviews
+      const reviews = await this.reviewService.getAllReviews({
         status: "pending",
         limit: query.limit,
         skip: query.skip,

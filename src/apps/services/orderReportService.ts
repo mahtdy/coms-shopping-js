@@ -311,7 +311,7 @@ export default class OrderReportService {
         orderNumber: order.orderNumber || order._id.toString(),
         issue: "cancelled",
         createdAt: order.createdAt,
-        lastUpdated: order.createdAt, // TODO: باید updatedAt را اضافه کنیم
+        lastUpdated: order.updatedAt || order.createdAt,
       });
     }
 
@@ -326,7 +326,7 @@ export default class OrderReportService {
         orderNumber: order.orderNumber || order._id.toString(),
         issue: "delivery_failed",
         createdAt: order.createdAt,
-        lastUpdated: order.createdAt,
+        lastUpdated: order.updatedAt || order.createdAt,
       });
     }
 
