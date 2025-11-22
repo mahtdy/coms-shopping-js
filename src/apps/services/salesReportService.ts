@@ -306,7 +306,20 @@ export default class SalesReportService {
         const productData = productMap.get(productId)!;
         productData.totalQuantitySold += item.quantity;
         productData.totalRevenue += item.price * item.quantity;
-        // TODO: باید totalCost را از productwarehouse بگیریم
+        
+        // کامنت: محاسبه totalCost از productwarehouse
+        try {
+          const productWarehouse = await this.productWarehouseRepo.findOne({
+            product: productId,
+          });
+          if (productWarehouse && productWarehouse.purchasePrice) {
+            productData.totalCost += productWarehouse.purchasePrice * item.quantity;
+          }
+        } catch (error) {
+          // کامنت: در صورت خطا، totalCost را 0 می‌گذاریم
+          console.warn(`خطا در دریافت purchasePrice برای محصول ${productId}:`, error);
+        }
+        
         productData.orderCount++;
         productData.prices.push(item.price);
       }
