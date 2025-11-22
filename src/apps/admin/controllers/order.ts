@@ -48,18 +48,18 @@ export class OrderController extends BaseController<Order> {
             );
 
             const orderId = serviceResult.order._id;
-            const discountResult = await this.discountController.generateDiscountAfterInvoice(user, {orderId});
+        const discountResult = await this.discountController.generateDiscountAfterInvoice(user, {orderId});
 
-            return {
-                status: 200,
-                message: "Order created and discount generated",
+        return {
+            status: 200,
+            message: "Order created and discount generated",
                 data: {
                     order: serviceResult.order,
                     discount: discountResult.data,
                     payment: serviceResult.paymentIntent,
                     totals: serviceResult.totals,
                 },
-            };
+        };
         } catch (error: any) {
             if (error?.status) {
                 return {
