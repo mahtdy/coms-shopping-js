@@ -11,12 +11,14 @@ import OrderRepository from "../../../repositories/admin/order/repository";
 import BasketRepository from "../../../repositories/admin/basket/repository";
 import z from "zod";
 import basket, {BasketController} from "../../admin/controllers/basket";
+import AddressValidationService from "../../services/addressValidationService";
 
 export class AddressController extends BaseController<Address> {
     // proRepo: ProductRepository;
     // prowareRepo: ProductWarehouseRepository;
     // orderRepo: OrderRepository;
     addressRepo: AddressRepository;
+    private addressValidationService: AddressValidationService;
 
     constructor(
         baseRoute: string,
@@ -25,6 +27,7 @@ export class AddressController extends BaseController<Address> {
     ) {
         super(baseRoute, repo, options);
         this.addressRepo = new AddressRepository();
+        this.addressValidationService = new AddressValidationService();
     }
 
 
@@ -157,6 +160,33 @@ export class AddressController extends BaseController<Address> {
         }
     ): Promise<Response> {
         try {
+            // کامنت: اعتبارسنجی آدرس
+            const validationResult = this.addressValidationService.validateAddress({
+                province: addressData.province,
+                city: addressData.city,
+                postalCode: addressData.postalCode,
+                location: addressData.location,
+                receiver: addressData.receiver,
+                details: addressData.details,
+            });
+
+            // کامنت: اگر خطاهای جدی وجود دارد، درخواست را رد می‌کنیم
+            if (!validationResult.isValid) {
+                return {
+                    status: 400,
+                    message: "خطا در اعتبارسنجی آدرس",
+                    data: {
+                        errors: validationResult.errors,
+                        warnings: validationResult.warnings,
+                    },
+                };
+            }
+
+            // کامنت: اگر هشدار وجود دارد، به کاربر اطلاع می‌دهیم اما ادامه می‌دهیم
+            if (validationResult.warnings.length > 0) {
+                console.warn("هشدارهای اعتبارسنجی آدرس:", validationResult.warnings);
+            }
+
             // بررسی وجود آدرس برای کاربر
             let userAddress = await this.repository.findOne({ user: user.id as string });
             
@@ -189,7 +219,12 @@ export class AddressController extends BaseController<Address> {
             return {
                 status: 200,
                 message: "آدرس با موفقیت اضافه شد",
-                data: userAddress
+                data: {
+                    address: userAddress,
+                    validation: {
+                        warnings: validationResult.warnings,
+                    },
+                },
             };
         } catch (error) {
             throw error;
@@ -259,8 +294,35 @@ export class AddressController extends BaseController<Address> {
                 };
             }
 
-            // به‌روزرسانی آدرس در ایندکس مشخص شده
+            // کامنت: اعتبارسنجی آدرس (فقط فیلدهای به‌روزرسانی شده)
             const addressToUpdate = userAddress.addressList[updateData.addressIndex] as any;
+            const validationData: any = {
+                province: updateData.province || addressToUpdate.province,
+                city: updateData.city || addressToUpdate.city,
+                postalCode: updateData.postalCode || addressToUpdate.postalCode,
+                location: updateData.location || addressToUpdate.location,
+                receiver: updateData.receiver || addressToUpdate.receiver,
+                details: updateData.details || addressToUpdate.details,
+            };
+
+            const validationResult = this.addressValidationService.validateAddress(validationData);
+
+            // کامنت: اگر خطاهای جدی وجود دارد، درخواست را رد می‌کنیم
+            if (!validationResult.isValid) {
+                return {
+                    status: 400,
+                    message: "خطا در اعتبارسنجی آدرس",
+                    data: {
+                        errors: validationResult.errors,
+                        warnings: validationResult.warnings,
+                    },
+                };
+            }
+
+            // کامنت: اگر هشدار وجود دارد، به کاربر اطلاع می‌دهیم اما ادامه می‌دهیم
+            if (validationResult.warnings.length > 0) {
+                console.warn("هشدارهای اعتبارسنجی آدرس:", validationResult.warnings);
+            }
             
             // اگر آدرس جدید به عنوان پیش‌فرض تنظیم می‌شود، بقیه را غیرفعال می‌کنیم
             if (updateData.isDefault === true) {
@@ -284,7 +346,12 @@ export class AddressController extends BaseController<Address> {
             return {
                 status: 200,
                 message: "آدرس با موفقیت بروزرسانی شد",
-                data: userAddress
+                data: {
+                    address: userAddress,
+                    validation: {
+                        warnings: validationResult.warnings,
+                    },
+                },
             };
         } catch (error) {
             throw error;
