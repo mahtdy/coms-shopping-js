@@ -139,6 +139,7 @@ export var adminPart = new Part("/admin", {
         productVariant,
         productWarranty,
         report,
+        review,
 
         // productDiscount,
         // brandFeatureValues,
