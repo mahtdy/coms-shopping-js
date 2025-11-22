@@ -178,6 +178,8 @@ export default class ProductRepository extends BasePageRepository<Product> {
       {
         $addFields: {
           totalStock: { $sum: "$warehouses.quantity" },
+          // کامنت: بررسی موجودی (برای فیلتر inStock)
+          hasStock: { $gt: [{ $sum: "$warehouses.quantity" }, 0] },
           // محاسبه لیست قیمت نهایی هر واریانت با ترکیب قیمت پایه و priceAdjustment‌های واریانت
           variantPrices: {
             $map: {
