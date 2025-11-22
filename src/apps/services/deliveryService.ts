@@ -263,12 +263,23 @@ export default class DeliveryService {
     }
 
     /**
-     * توضیح فارسی: رهگیری بسته با کد رهگیری
+     * توضیح فارسی: رهگیری بسته با کد رهگیری (پیشرفته)
      */
     async trackPackage(trackingCode: string): Promise<{
         package: Package | null;
         order?: Order;
         courier?: Courier;
+        estimatedDeliveryTime?: Date;
+        route?: {
+            currentLocation?: { lat: number; lng: number };
+            destination: { lat: number; lng: number };
+            distance?: number; // فاصله به کیلومتر
+        };
+        statusHistory?: Array<{
+            status: Package["status"];
+            timestamp: Date;
+            notes?: string;
+        }>;
     }> {
         const packageDoc = await this.packageRepo.findOne({ trackingCode });
 

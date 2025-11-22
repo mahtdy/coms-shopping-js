@@ -132,6 +132,9 @@ export class OrderController extends BaseController<Order> {
           package: trackingResult.package,
           order: trackingResult.order,
           courier: trackingResult.courier,
+          estimatedDeliveryTime: trackingResult.estimatedDeliveryTime,
+          route: trackingResult.route,
+          statusHistory: trackingResult.statusHistory,
         },
       };
     } catch (error: any) {

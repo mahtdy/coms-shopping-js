@@ -51,8 +51,11 @@ export class UserProductController extends BaseController<Product> {
             schema: z.object({
                 "category": BaseController.id.optional(),
                 "brand": BaseController.id.optional(),
-                "search": BaseController.id.optional(),
-
+                "search": z.string().optional(),
+                "minPrice": z.coerce.number().optional(),
+                "maxPrice": z.coerce.number().optional(),
+                "minRating": z.coerce.number().min(0).max(5).optional(),
+                "inStock": z.coerce.boolean().optional(),
             })
         })filters?:any
     ): Promise<Response> {
@@ -63,6 +66,66 @@ export class UserProductController extends BaseController<Product> {
             // status: 200,
             data,
         };
+    }
+
+    /**
+     * توضیح فارسی: جستجوی پیشرفته محصولات
+     */
+    @Get("/search")
+    async advancedSearch(
+        @Query({
+            schema: z.object({
+                page: z.coerce.number().default(1),
+                limit: z.coerce.number().default(10),
+                search: z.string().optional(),
+                category: BaseController.id.optional(),
+                brand: BaseController.id.optional(),
+                minPrice: z.coerce.number().optional(),
+                maxPrice: z.coerce.number().optional(),
+                minRating: z.coerce.number().min(0).max(5).optional(),
+                inStock: z.coerce.boolean().optional(),
+                sort: z.enum(["latest", "price_high", "price_low", "most_viewed", "best_seller", "rating"]).optional(),
+            }),
+        })
+        query: {
+            page?: number;
+            limit?: number;
+            search?: string;
+            category?: string;
+            brand?: string;
+            minPrice?: number;
+            maxPrice?: number;
+            minRating?: number;
+            inStock?: boolean;
+            sort?: string;
+        }
+    ): Promise<Response> {
+        try {
+            const data = await this.repository.getProductList(
+                query.page || 1,
+                query.limit || 10,
+                {
+                    search: query.search,
+                    category: query.category,
+                    brand: query.brand,
+                    minPrice: query.minPrice,
+                    maxPrice: query.maxPrice,
+                    minRating: query.minRating,
+                    inStock: query.inStock,
+                },
+                query.sort
+            );
+
+            return {
+                status: 200,
+                data,
+            };
+        } catch (error: any) {
+            return {
+                status: 500,
+                message: error.message || "خطا در جستجوی محصولات",
+            };
+        }
     }
 
     // @Get("/price")

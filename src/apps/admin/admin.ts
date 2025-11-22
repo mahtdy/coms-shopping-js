@@ -140,6 +140,7 @@ export var adminPart = new Part("/admin", {
         productWarranty,
         report,
         review,
+    returnController,
 
         // productDiscount,
         // brandFeatureValues,

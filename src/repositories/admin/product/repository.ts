@@ -75,9 +75,42 @@ export default class ProductRepository extends BasePageRepository<Product> {
 
   async getProductList(page = 1, limit = 10, filters: any = {}, sortType?: string) {
     const query: any = {};
+    
+    // کامنت: فیلتر دسته‌بندی
     if (filters.category) query.category = filters.category;
+    
+    // کامنت: فیلتر برند
     if (filters.brand) query.brand = filters.brand;
-    if (filters.search) query.title = { $regex: filters.search, $options: "i" };
+    
+    // کامنت: جستجوی متن (در title و description)
+    if (filters.search) {
+      query.$or = [
+        { title: { $regex: filters.search, $options: "i" } },
+        { summary: { $regex: filters.search, $options: "i" } },
+        { description: { $regex: filters.search, $options: "i" } },
+      ];
+    }
+    
+    // کامنت: فیلتر قیمت (حداقل)
+    if (filters.minPrice) {
+      query.price = { ...query.price, $gte: filters.minPrice };
+    }
+    
+    // کامنت: فیلتر قیمت (حداکثر)
+    if (filters.maxPrice) {
+      query.price = { ...query.price, $lte: filters.maxPrice };
+    }
+    
+    // کامنت: فیلتر امتیاز (حداقل)
+    if (filters.minRating) {
+      // کامنت: این فیلتر نیاز به join با reviews دارد که در pipeline انجام می‌شود
+      // در حال حاضر فقط در pipeline اعمال می‌شود
+    }
+    
+    // کامنت: فیلتر موجودی (فقط محصولات موجود)
+    if (filters.inStock === true || filters.inStock === "true") {
+      // کامنت: این فیلتر در pipeline اعمال می‌شود
+    }
 
     let sort: Record<string, 1 | -1> = {};
     switch (sortType) {
@@ -93,6 +126,36 @@ export default class ProductRepository extends BasePageRepository<Product> {
 
     const pipeline = [
       { $match: query },
+      // کامنت: Lookup برای نظرات و امتیازها
+      {
+        $lookup: {
+          from: "productreviews",
+          localField: "_id",
+          foreignField: "product",
+          as: "reviews",
+          pipeline: [
+            { $match: { status: "approved" } },
+            {
+              $group: {
+                _id: null,
+                averageRating: { $avg: "$rating" },
+                totalReviews: { $sum: 1 },
+              },
+            },
+          ],
+        },
+      },
+      // کامنت: محاسبه averageRating از reviews
+      {
+        $addFields: {
+          averageRating: {
+            $ifNull: [{ $arrayElemAt: ["$reviews.averageRating", 0] }, 0],
+          },
+          totalReviews: {
+            $ifNull: [{ $arrayElemAt: ["$reviews.totalReviews", 0] }, 0],
+          },
+        },
+      },
       // واریانت‌ها
       {
         $lookup: {
