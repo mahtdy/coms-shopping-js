@@ -267,6 +267,61 @@ export class ReviewController extends BaseController<any> {
   }
 }
 
+  /**
+   * توضیح فارسی: دریافت محصولات برتر بر اساس امتیاز
+   */
+  @Get("/top-rated")
+  async getTopRatedProducts(
+    @Query({
+      schema: z.object({
+        limit: z.number().default(10),
+      }),
+    })
+    query: { limit?: number }
+  ): Promise<Response> {
+    try {
+      const products = await this.reviewService.getTopRatedProducts(query.limit || 10);
+
+      return {
+        status: 200,
+        data: products,
+      };
+    } catch (error: any) {
+      return {
+        status: 500,
+        message: error.message || "خطا در دریافت محصولات برتر",
+      };
+    }
+  }
+
+  /**
+   * توضیح فارسی: دریافت محصولات با بیشترین نظرات
+   */
+  @Get("/most-reviewed")
+  async getMostReviewedProducts(
+    @Query({
+      schema: z.object({
+        limit: z.number().default(10),
+      }),
+    })
+    query: { limit?: number }
+  ): Promise<Response> {
+    try {
+      const products = await this.reviewService.getMostReviewedProducts(query.limit || 10);
+
+      return {
+        status: 200,
+        data: products,
+      };
+    } catch (error: any) {
+      return {
+        status: 500,
+        message: error.message || "خطا در دریافت محصولات با بیشترین نظرات",
+      };
+    }
+  }
+}
+
 const review = new ReviewController();
 export default review;
 

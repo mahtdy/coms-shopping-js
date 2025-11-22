@@ -7,13 +7,17 @@ import {Response} from "../../../core/controller";
 import Product from "../../../repositories/admin/product/model";
 // import { Param } from "../../decorators/parameters";
 import { Body, Param, Query } from "../../../core/decorators/parameters";
+import ReviewService from "../../services/reviewService";
 // import { Body, Param, Query } from "../../../core/mongoose-controller/controller";
 // import { Request, Response } from "express";
 
 
 export class UserProductController extends BaseController<Product> {
+    private reviewService: ReviewService;
+
     constructor(baseRoute: string, repo: UserProductRepository, options: ControllerOptions) {
         super(baseRoute, repo, options);
+        this.reviewService = new ReviewService();
     }
     // async list11(req: Request, res: Response) {
     //     try {
@@ -174,6 +178,23 @@ export class UserProductController extends BaseController<Product> {
             return {
                 status: 200,
                 data: { productId: product._id, variant, stockByWarehouse }
+            };
+        }
+
+        // کامنت: افزودن آمار امتیاز به محصول
+        try {
+            const ratingStats = await this.reviewService.getProductRatingStats(id);
+            (product as any).rating = {
+                average: ratingStats.averageRating,
+                total: ratingStats.totalReviews,
+                distribution: ratingStats.ratingDistribution,
+            };
+        } catch (error: any) {
+            // کامنت: در صورت خطا، امتیاز را null می‌کنیم
+            (product as any).rating = {
+                average: 0,
+                total: 0,
+                distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
             };
         }
 

@@ -373,5 +373,152 @@ export default class ReviewService {
       hasReviewed: false,
     };
   }
+
+  /**
+   * توضیح فارسی: دریافت محصولات برتر بر اساس امتیاز
+   */
+  async getTopRatedProducts(limit: number = 10): Promise<Array<{
+    productId: string;
+    productName: string;
+    averageRating: number;
+    totalReviews: number;
+  }>> {
+    const stats = await this.reviewRepo.collection.aggregate([
+      {
+        $match: {
+          status: "approved",
+        },
+      },
+      {
+        $group: {
+          _id: "$product",
+          averageRating: { $avg: "$rating" },
+          totalReviews: { $sum: 1 },
+        },
+      },
+      {
+        $sort: { averageRating: -1, totalReviews: -1 },
+      },
+      {
+        $limit: limit,
+      },
+    ]);
+
+    // کامنت: دریافت اطلاعات محصولات
+    const products = await Promise.all(
+      stats.map(async (stat) => {
+        const product = await this.productRepo.findById(stat._id.toString());
+        return {
+          productId: stat._id.toString(),
+          productName: product?.title || "Unknown",
+          averageRating: Math.round((stat.averageRating || 0) * 10) / 10,
+          totalReviews: stat.totalReviews,
+        };
+      })
+    );
+
+    return products;
+  }
+
+  /**
+   * توضیح فارسی: دریافت محصولات با بیشترین نظرات
+   */
+  async getMostReviewedProducts(limit: number = 10): Promise<Array<{
+    productId: string;
+    productName: string;
+    averageRating: number;
+    totalReviews: number;
+  }>> {
+    const stats = await this.reviewRepo.collection.aggregate([
+      {
+        $match: {
+          status: "approved",
+        },
+      },
+      {
+        $group: {
+          _id: "$product",
+          averageRating: { $avg: "$rating" },
+          totalReviews: { $sum: 1 },
+        },
+      },
+      {
+        $sort: { totalReviews: -1, averageRating: -1 },
+      },
+      {
+        $limit: limit,
+      },
+    ]);
+
+    // کامنت: دریافت اطلاعات محصولات
+    const products = await Promise.all(
+      stats.map(async (stat) => {
+        const product = await this.productRepo.findById(stat._id.toString());
+        return {
+          productId: stat._id.toString(),
+          productName: product?.title || "Unknown",
+          averageRating: Math.round((stat.averageRating || 0) * 10) / 10,
+          totalReviews: stat.totalReviews,
+        };
+      })
+    );
+
+    return products;
+  }
+
+  /**
+   * توضیح فارسی: دریافت آمار کلی نظرات
+   */
+  async getOverallReviewStats(): Promise<{
+    totalReviews: number;
+    approvedReviews: number;
+    pendingReviews: number;
+    rejectedReviews: number;
+    averageRating: number;
+    totalProductsWithReviews: number;
+  }> {
+    const stats = await this.reviewRepo.collection.aggregate([
+      {
+        $group: {
+          _id: "$status",
+          count: { $sum: 1 },
+          avgRating: { $avg: "$rating" },
+        },
+      },
+    ]);
+
+    const statusCounts: { [key: string]: number } = {
+      approved: 0,
+      pending: 0,
+      rejected: 0,
+    };
+    let totalRating = 0;
+    let totalCount = 0;
+
+    for (const stat of stats) {
+      statusCounts[stat._id] = stat.count;
+      if (stat._id === "approved") {
+        totalRating += (stat.avgRating || 0) * stat.count;
+        totalCount += stat.count;
+      }
+    }
+
+    const totalReviews = Object.values(statusCounts).reduce((sum, count) => sum + count, 0);
+    const averageRating = totalCount > 0 ? totalRating / totalCount : 0;
+
+    // کامنت: تعداد محصولات با نظرات
+    const productsWithReviews = await this.reviewRepo.collection.distinct("product", {
+      status: "approved",
+    });
+
+    return {
+      totalReviews,
+      approvedReviews: statusCounts.approved,
+      pendingReviews: statusCounts.pending,
+      rejectedReviews: statusCounts.rejected,
+      averageRating: Math.round(averageRating * 10) / 10,
+      totalProductsWithReviews: productsWithReviews.length,
+    };
+  }
 }
 

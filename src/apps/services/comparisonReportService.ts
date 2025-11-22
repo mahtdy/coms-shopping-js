@@ -446,5 +446,145 @@ export default class ComparisonReportService {
       orders: ordersData,
     };
   }
+
+  /**
+   * توضیح فارسی: مقایسه چند دوره (برای نمودارهای پیشرفته)
+   * @param periods آرایه دوره‌ها برای مقایسه
+   */
+  async getMultiPeriodComparison(periods: Array<{ start: Date; end: Date; label: string }>): Promise<{
+    periods: Array<{ start: Date; end: Date; label: string }>;
+    sales: Array<{
+      period: string;
+      totalRevenue: number;
+      totalOrders: number;
+      totalProfit: number;
+      averageOrderValue: number;
+    }>;
+    orders: Array<{
+      period: string;
+      totalOrders: number;
+      completedOrders: number;
+      cancelledOrders: number;
+    }>;
+  }> {
+    const salesData: Array<{
+      period: string;
+      totalRevenue: number;
+      totalOrders: number;
+      totalProfit: number;
+      averageOrderValue: number;
+    }> = [];
+    const ordersData: Array<{
+      period: string;
+      totalOrders: number;
+      completedOrders: number;
+      cancelledOrders: number;
+    }> = [];
+
+    // کامنت: دریافت گزارش‌های همه دوره‌ها
+    for (const period of periods) {
+      const [salesSummary, orderStatusReport] = await Promise.all([
+        this.salesReportService.getSalesSummary(period.start, period.end),
+        this.orderReportService.getOrderStatusReport(period.start, period.end),
+      ]);
+
+      salesData.push({
+        period: period.label,
+        totalRevenue: salesSummary.totalRevenue,
+        totalOrders: salesSummary.totalOrders,
+        totalProfit: salesSummary.totalProfit,
+        averageOrderValue: salesSummary.averageOrderValue,
+      });
+
+      const totalOrders = orderStatusReport.reduce((sum, item) => sum + item.count, 0);
+      const completedOrders = orderStatusReport.find((r) => r.status === "completed")?.count || 0;
+      const cancelledOrders = orderStatusReport.find((r) => r.status === "cancelled")?.count || 0;
+
+      ordersData.push({
+        period: period.label,
+        totalOrders,
+        completedOrders,
+        cancelledOrders,
+      });
+    }
+
+    return {
+      periods,
+      sales: salesData,
+      orders: ordersData,
+    };
+  }
+
+  /**
+   * توضیح فارسی: دریافت گزارش مقایسه‌ای بر اساس محصول
+   */
+  async getProductComparison(
+    productId: string,
+    startDate: Date,
+    endDate: Date,
+    periodType: PeriodType = "month"
+  ): Promise<{
+    period: {
+      current: { start: Date; end: Date; label: string };
+      previous: { start: Date; end: Date; label: string };
+    };
+    totalQuantitySold: ComparisonResult;
+    totalRevenue: ComparisonResult;
+    totalProfit: ComparisonResult;
+    averagePrice: ComparisonResult;
+    orderCount: ComparisonResult;
+  }> {
+    // کامنت: محاسبه دوره قبلی
+    const previousPeriod = this.calculatePreviousPeriod(startDate, endDate, periodType);
+
+    // کامنت: دریافت گزارش فروش محصول
+    const [currentProductReport, previousProductReport] = await Promise.all([
+      this.salesReportService.getProductSalesReport(startDate, endDate),
+      this.salesReportService.getProductSalesReport(previousPeriod.start, previousPeriod.end),
+    ]);
+
+    // کامنت: پیدا کردن محصول در گزارش‌ها
+    const currentProduct = currentProductReport.find((p) => p.productId === productId);
+    const previousProduct = previousProductReport.find((p) => p.productId === productId);
+
+    const currentData = currentProduct || {
+      totalQuantitySold: 0,
+      totalRevenue: 0,
+      totalProfit: 0,
+      averagePrice: 0,
+      orderCount: 0,
+    };
+
+    const previousData = previousProduct || {
+      totalQuantitySold: 0,
+      totalRevenue: 0,
+      totalProfit: 0,
+      averagePrice: 0,
+      orderCount: 0,
+    };
+
+    return {
+      period: {
+        current: {
+          start: startDate,
+          end: endDate,
+          label: this.getPeriodLabel(startDate, endDate, periodType),
+        },
+        previous: {
+          start: previousPeriod.start,
+          end: previousPeriod.end,
+          label: this.getPeriodLabel(previousPeriod.start, previousPeriod.end, periodType),
+        },
+      },
+      totalQuantitySold: this.calculateComparison(
+        currentData.totalQuantitySold,
+        previousData.totalQuantitySold
+      ),
+      totalRevenue: this.calculateComparison(currentData.totalRevenue, previousData.totalRevenue),
+      totalProfit: this.calculateComparison(currentData.totalProfit, previousData.totalProfit),
+      averagePrice: this.calculateComparison(currentData.averagePrice, previousData.averagePrice),
+      orderCount: this.calculateComparison(currentData.orderCount, previousData.orderCount),
+    };
+  }
 }
 

@@ -174,6 +174,26 @@ export class AdminReviewController extends BaseController<any> {
       };
     }
   }
+
+  /**
+   * توضیح فارسی: دریافت آمار کلی نظرات
+   */
+  @Get("/stats")
+  async getOverallReviewStats(): Promise<Response> {
+    try {
+      const stats = await this.reviewService.getOverallReviewStats();
+
+      return {
+        status: 200,
+        data: stats,
+      };
+    } catch (error: any) {
+      return {
+        status: 500,
+        message: error.message || "خطا در دریافت آمار کلی نظرات",
+      };
+    }
+  }
 }
 
 const adminReview = new AdminReviewController();

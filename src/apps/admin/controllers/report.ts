@@ -1,7 +1,7 @@
 import BaseController, { ControllerOptions } from "../../../core/mongoose-controller/controller";
 import { Response } from "../../../core/controller";
 import { Get } from "../../../core/decorators/method";
-import { Query } from "../../../core/decorators/parameters";
+import { Query, Param } from "../../../core/decorators/parameters";
 import { z } from "zod";
 import SalesReportService from "../../services/salesReportService";
 import OrderReportService from "../../services/orderReportService";
@@ -582,6 +582,86 @@ export class ReportController extends BaseController<any> {
       return {
         status: 500,
         message: error.message || "خطا در دریافت گزارش روند",
+      };
+    }
+  }
+
+  /**
+   * توضیح فارسی: مقایسه چند دوره
+   */
+  @Get("/comparison/multi-period")
+  async getMultiPeriodComparison(
+    @Query({
+      schema: z.object({
+        periods: z.array(
+          z.object({
+            startDate: z.string(),
+            endDate: z.string(),
+            label: z.string().optional(),
+          })
+        ),
+      }),
+    })
+    query: {
+      periods: Array<{ startDate: string; endDate: string; label?: string }>;
+    }
+  ): Promise<Response> {
+    try {
+      const periods = query.periods.map((p) => ({
+        start: new Date(p.startDate),
+        end: new Date(p.endDate),
+        label: p.label || `${p.startDate} - ${p.endDate}`,
+      }));
+
+      const comparison = await this.comparisonReportService.getMultiPeriodComparison(periods);
+
+      return {
+        status: 200,
+        data: comparison,
+      };
+    } catch (error: any) {
+      return {
+        status: 500,
+        message: error.message || "خطا در دریافت گزارش مقایسه چند دوره",
+      };
+    }
+  }
+
+  /**
+   * توضیح فارسی: مقایسه محصول
+   */
+  @Get("/comparison/product/:productId")
+  async getProductComparison(
+    @Query({ destination: "productId", schema: z.string() }) productId: string,
+    @Query({
+      schema: z.object({
+        startDate: z.string(),
+        endDate: z.string(),
+        periodType: z.enum(["day", "week", "month", "quarter", "year"]).default("month"),
+      }),
+    })
+    query: { startDate: string; endDate: string; periodType?: "day" | "week" | "month" | "quarter" | "year" }
+  ): Promise<Response> {
+    try {
+      const startDate = new Date(query.startDate);
+      const endDate = new Date(query.endDate);
+      const periodType = query.periodType || "month";
+
+      const comparison = await this.comparisonReportService.getProductComparison(
+        productId,
+        startDate,
+        endDate,
+        periodType
+      );
+
+      return {
+        status: 200,
+        data: comparison,
+      };
+    } catch (error: any) {
+      return {
+        status: 500,
+        message: error.message || "خطا در دریافت گزارش مقایسه محصول",
       };
     }
   }
