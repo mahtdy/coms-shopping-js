@@ -17,6 +17,7 @@
         "upgrade": "npm update --save-dev && npm update --save",
         "test": "jest --forceExit --detectOpenHandles --coverage --verbose",
         "seed": "npm run build && node -r dotenv/config build/scripts/seed.js",
+        "seed-mobile": "npm run build && node -r dotenv/config build/scripts/seed-mobile-shop.js",
         "test-scenarios": "npm run build && node -r dotenv/config build/scripts/test-scenarios.js"
     },
     "author": "majic maker",
