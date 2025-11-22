@@ -6,6 +6,7 @@ import { z } from "zod";
 import SalesReportService from "../../services/salesReportService";
 import OrderReportService from "../../services/orderReportService";
 import InventoryReportService from "../../services/inventoryReportService";
+import ComparisonReportService from "../../services/comparisonReportService";
 
 /**
  * توضیح فارسی: کنترلر گزارش‌ها
@@ -15,12 +16,14 @@ export class ReportController extends BaseController<any> {
   private salesReportService: SalesReportService;
   private orderReportService: OrderReportService;
   private inventoryReportService: InventoryReportService;
+  private comparisonReportService: ComparisonReportService;
 
   constructor(baseRoute: string, options?: ControllerOptions) {
     super(baseRoute, {} as any, options);
     this.salesReportService = new SalesReportService();
     this.orderReportService = new OrderReportService();
     this.inventoryReportService = new InventoryReportService();
+    this.comparisonReportService = new ComparisonReportService();
   }
 
   initApis() {
@@ -386,6 +389,199 @@ export class ReportController extends BaseController<any> {
       return {
         status: 500,
         message: error.message || "خطا در دریافت داشبورد",
+      };
+    }
+  }
+
+  /**
+   * توضیح فارسی: گزارش مقایسه‌ای فروش
+   */
+  @Get("/comparison/sales")
+  async getSalesComparison(
+    @Query({
+      schema: z.object({
+        startDate: z.string(),
+        endDate: z.string(),
+        periodType: z.enum(["day", "week", "month", "quarter", "year"]).default("month"),
+      }),
+    })
+    query: { startDate: string; endDate: string; periodType?: "day" | "week" | "month" | "quarter" | "year" }
+  ): Promise<Response> {
+    try {
+      const startDate = new Date(query.startDate);
+      const endDate = new Date(query.endDate);
+      const periodType = query.periodType || "month";
+
+      const comparison = await this.comparisonReportService.getSalesComparison(
+        startDate,
+        endDate,
+        periodType
+      );
+
+      return {
+        status: 200,
+        data: comparison,
+      };
+    } catch (error: any) {
+      return {
+        status: 500,
+        message: error.message || "خطا در دریافت گزارش مقایسه‌ای فروش",
+      };
+    }
+  }
+
+  /**
+   * توضیح فارسی: گزارش مقایسه‌ای سفارش
+   */
+  @Get("/comparison/orders")
+  async getOrderComparison(
+    @Query({
+      schema: z.object({
+        startDate: z.string(),
+        endDate: z.string(),
+        periodType: z.enum(["day", "week", "month", "quarter", "year"]).default("month"),
+      }),
+    })
+    query: { startDate: string; endDate: string; periodType?: "day" | "week" | "month" | "quarter" | "year" }
+  ): Promise<Response> {
+    try {
+      const startDate = new Date(query.startDate);
+      const endDate = new Date(query.endDate);
+      const periodType = query.periodType || "month";
+
+      const comparison = await this.comparisonReportService.getOrderComparison(
+        startDate,
+        endDate,
+        periodType
+      );
+
+      return {
+        status: 200,
+        data: comparison,
+      };
+    } catch (error: any) {
+      return {
+        status: 500,
+        message: error.message || "خطا در دریافت گزارش مقایسه‌ای سفارش",
+      };
+    }
+  }
+
+  /**
+   * توضیح فارسی: گزارش مقایسه‌ای موجودی
+   */
+  @Get("/comparison/inventory")
+  async getInventoryComparison(
+    @Query({
+      schema: z.object({
+        startDate: z.string(),
+        endDate: z.string(),
+        periodType: z.enum(["day", "week", "month", "quarter", "year"]).default("month"),
+      }),
+    })
+    query: { startDate: string; endDate: string; periodType?: "day" | "week" | "month" | "quarter" | "year" }
+  ): Promise<Response> {
+    try {
+      const startDate = new Date(query.startDate);
+      const endDate = new Date(query.endDate);
+      const periodType = query.periodType || "month";
+
+      const comparison = await this.comparisonReportService.getInventoryComparison(
+        startDate,
+        endDate,
+        periodType
+      );
+
+      return {
+        status: 200,
+        data: comparison,
+      };
+    } catch (error: any) {
+      return {
+        status: 500,
+        message: error.message || "خطا در دریافت گزارش مقایسه‌ای موجودی",
+      };
+    }
+  }
+
+  /**
+   * توضیح فارسی: گزارش مقایسه‌ای کامل (همه بخش‌ها)
+   */
+  @Get("/comparison/full")
+  async getFullComparison(
+    @Query({
+      schema: z.object({
+        startDate: z.string(),
+        endDate: z.string(),
+        periodType: z.enum(["day", "week", "month", "quarter", "year"]).default("month"),
+      }),
+    })
+    query: { startDate: string; endDate: string; periodType?: "day" | "week" | "month" | "quarter" | "year" }
+  ): Promise<Response> {
+    try {
+      const startDate = new Date(query.startDate);
+      const endDate = new Date(query.endDate);
+      const periodType = query.periodType || "month";
+
+      const comparison = await this.comparisonReportService.getFullComparison(
+        startDate,
+        endDate,
+        periodType
+      );
+
+      return {
+        status: 200,
+        data: comparison,
+      };
+    } catch (error: any) {
+      return {
+        status: 500,
+        message: error.message || "خطا در دریافت گزارش مقایسه‌ای کامل",
+      };
+    }
+  }
+
+  /**
+   * توضیح فارسی: گزارش روند (چند دوره)
+   */
+  @Get("/comparison/trend")
+  async getTrendComparison(
+    @Query({
+      schema: z.object({
+        startDate: z.string(),
+        endDate: z.string(),
+        periodType: z.enum(["day", "week", "month", "quarter", "year"]),
+        count: z.number().default(6),
+      }),
+    })
+    query: {
+      startDate: string;
+      endDate: string;
+      periodType: "day" | "week" | "month" | "quarter" | "year";
+      count?: number;
+    }
+  ): Promise<Response> {
+    try {
+      const startDate = new Date(query.startDate);
+      const endDate = new Date(query.endDate);
+      const periodType = query.periodType;
+      const count = query.count || 6;
+
+      const trend = await this.comparisonReportService.getTrendComparison(
+        startDate,
+        endDate,
+        periodType,
+        count
+      );
+
+      return {
+        status: 200,
+        data: trend,
+      };
+    } catch (error: any) {
+      return {
+        status: 500,
+        message: error.message || "خطا در دریافت گزارش روند",
       };
     }
   }
