@@ -298,11 +298,114 @@ export default class DeliveryService {
             courier = await this.courierRepo.findById(packageDoc.courier as string);
         }
 
+        // کامنت: محاسبه تخمین زمان تحویل
+        let estimatedDeliveryTime: Date | undefined;
+        if (packageDoc.status === "in_transit" && packageDoc.assignedAt) {
+            // کامنت: فرض می‌کنیم زمان تحویل معمولاً 2-4 ساعت بعد از تخصیص است
+            const estimatedHours = 3; // می‌توان از تنظیمات یا محاسبه فاصله استفاده کرد
+            estimatedDeliveryTime = new Date(
+                packageDoc.assignedAt.getTime() + estimatedHours * 60 * 60 * 1000
+            );
+        } else if (packageDoc.status === "delivered" && packageDoc.deliveredAt) {
+            estimatedDeliveryTime = packageDoc.deliveredAt;
+        }
+
+        // کامنت: محاسبه مسیر و فاصله
+        let route: {
+            currentLocation?: { lat: number; lng: number };
+            destination: { lat: number; lng: number };
+            distance?: number;
+        } | undefined;
+
+        if (packageDoc.destination) {
+            route = {
+                destination: {
+                    lat: packageDoc.destination.lat,
+                    lng: packageDoc.destination.lng,
+                },
+            };
+
+            // کامنت: اگر پیک تخصیص داده شده و موقعیت فعلی دارد
+            if (courier && (courier as any).currentLocation) {
+                route.currentLocation = {
+                    lat: (courier as any).currentLocation.lat,
+                    lng: (courier as any).currentLocation.lng,
+                };
+
+                // کامنت: محاسبه فاصله
+                if (route.currentLocation) {
+                    const dx = route.destination.lat - route.currentLocation.lat;
+                    const dy = route.destination.lng - route.currentLocation.lng;
+                    // کامنت: تقریب ساده (Haversine دقیق‌تر است اما اینجا برای سرعت)
+                    route.distance = Math.sqrt(dx * dx + dy * dy) * 111; // تقریب به کیلومتر
+                }
+            }
+        }
+
+        // کامنت: تاریخچه وضعیت (از timestamps موجود در package)
+        const statusHistory: Array<{
+            status: Package["status"];
+            timestamp: Date;
+            notes?: string;
+        }> = [];
+
+        if (packageDoc.assignedAt) {
+            statusHistory.push({
+                status: "assigned",
+                timestamp: packageDoc.assignedAt,
+                notes: "بسته به پیک تخصیص داده شد",
+            });
+        }
+
+        if (packageDoc.status === "in_transit") {
+            statusHistory.push({
+                status: "in_transit",
+                timestamp: packageDoc.assignedAt || new Date(),
+                notes: "بسته در حال ارسال است",
+            });
+        }
+
+        if (packageDoc.deliveredAt) {
+            statusHistory.push({
+                status: "delivered",
+                timestamp: packageDoc.deliveredAt,
+                notes: "بسته تحویل داده شد",
+            });
+        }
+
+        // کامنت: مرتب‌سازی بر اساس تاریخ
+        statusHistory.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
         return {
             package: packageDoc,
             order,
             courier,
+            estimatedDeliveryTime,
+            route,
+            statusHistory,
         };
+    }
+
+    /**
+     * توضیح فارسی: به‌روزرسانی خودکار وضعیت بسته (برای استفاده در cron job)
+     */
+    async autoUpdatePackageStatus(): Promise<void> {
+        // کامنت: دریافت بسته‌های در حال ارسال که بیش از 24 ساعت در این وضعیت هستند
+        const packages = await this.packageRepo.find({
+            status: "in_transit",
+            assignedAt: { $lt: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+        });
+
+        for (const pkg of packages) {
+            // کامنت: بررسی اینکه آیا باید به delivered تغییر وضعیت دهد
+            // در اینجا می‌توان منطق پیچیده‌تری اضافه کرد
+            // مثلاً بررسی موقعیت پیک و مقایسه با مقصد
+            try {
+                await this.updatePackageStatus(pkg._id.toString(), "delivered", "تحویل خودکار پس از 24 ساعت");
+            } catch (error) {
+                console.error(`خطا در به‌روزرسانی خودکار بسته ${pkg._id}:`, error);
+            }
+        }
     }
 
     /**
