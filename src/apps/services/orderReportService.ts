@@ -306,13 +306,13 @@ export default class OrderReportService {
       orderStatus: "cancelled",
     });
     for (const order of cancelledOrders) {
-      problematicOrders.push({
-        orderId: order._id.toString(),
-        orderNumber: order.orderNumber || order._id.toString(),
-        issue: "cancelled",
-        createdAt: order.createdAt,
-        lastUpdated: order.createdAt, // TODO: باید updatedAt را اضافه کنیم
-      });
+        problematicOrders.push({
+          orderId: order._id.toString(),
+          orderNumber: order.orderNumber || order._id.toString(),
+          issue: "cancelled",
+          createdAt: order.createdAt,
+          lastUpdated: (order as any).updatedAt || order.createdAt, // کامنت: استفاده از updatedAt در صورت وجود
+        });
     }
 
     // کامنت: سفارش‌های با ارسال ناموفق
@@ -321,13 +321,13 @@ export default class OrderReportService {
       deliveryStatus: "failed",
     });
     for (const order of failedDeliveryOrders) {
-      problematicOrders.push({
-        orderId: order._id.toString(),
-        orderNumber: order.orderNumber || order._id.toString(),
-        issue: "delivery_failed",
-        createdAt: order.createdAt,
-        lastUpdated: order.createdAt,
-      });
+        problematicOrders.push({
+          orderId: order._id.toString(),
+          orderNumber: order.orderNumber || order._id.toString(),
+          issue: "delivery_failed",
+          createdAt: order.createdAt,
+          lastUpdated: (order as any).updatedAt || order.createdAt, // کامنت: استفاده از updatedAt در صورت وجود
+        });
     }
 
     // کامنت: مرتب‌سازی بر اساس تاریخ

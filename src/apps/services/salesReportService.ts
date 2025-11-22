@@ -2,6 +2,7 @@ import OrderRepository from "../../repositories/admin/order/repository";
 import Order from "../../repositories/admin/order/model";
 import ProductRepository from "../../repositories/admin/product/repository";
 import DiscountRepository from "../../repositories/admin/discount/repository";
+import ProductWarehouseRepository from "../../repositories/admin/productWarehouse/repository";
 
 /**
  * توضیح فارسی: سرویس گزارش‌دهی فروش
@@ -88,11 +89,13 @@ export interface SalesSummary {
  */
 export default class SalesReportService {
   private orderRepo: OrderRepository;
+  private productWarehouseRepo: ProductWarehouseRepository;
   private productRepo: ProductRepository;
   private discountRepo: DiscountRepository;
 
   constructor() {
     this.orderRepo = new OrderRepository();
+    this.productWarehouseRepo = new ProductWarehouseRepository();
     this.productRepo = new ProductRepository();
     this.discountRepo = new DiscountRepository();
   }

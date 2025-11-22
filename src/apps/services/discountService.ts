@@ -254,10 +254,27 @@ export default class DiscountService {
 
     // کامنت: بررسی فیلترهای کاربر
     if (user) {
+      // کامنت: دریافت اطلاعات کامل کاربر از دیتابیس
+      let userGender: "male" | "female" | undefined;
+      let userAge: number | undefined;
+      
+      try {
+        const fullUser = await UserModel.findById(user.id);
+        if (fullUser) {
+          // کامنت: فرض می‌کنیم فیلدهای gender و age در User model وجود دارند
+          // اگر وجود ندارند، می‌توانید آنها را به model اضافه کنید
+          userGender = (fullUser as any).gender;
+          userAge = (fullUser as any).age;
+        }
+      } catch (error) {
+        console.warn(`خطا در دریافت اطلاعات کاربر ${user.id}:`, error);
+      }
+      
       const userDiscountInfo: UserDiscountInfo = {
         userId: user.id,
         isFirstOrder: discount.firstInvoiceOnly,
-        // TODO: باید از user model اطلاعات gender و age را بگیریم
+        gender: userGender,
+        age: userAge,
       };
       if (!this.checkUserFilters(discount, userDiscountInfo)) {
         return {

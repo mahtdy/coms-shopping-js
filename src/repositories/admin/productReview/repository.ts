@@ -136,5 +136,65 @@ export default class ProductReviewRepository extends BaseRepositoryService<Produ
 
     return this.find(query, options);
   }
+
+  /**
+   * توضیح فارسی: دریافت همه نظرات با فیلترهای پیشرفته
+   * این متد برای پنل ادمین استفاده می‌شود
+   */
+  async getAllReviews(filters?: {
+    status?: "pending" | "approved" | "rejected";
+    productId?: string;
+    userId?: string;
+    rating?: number;
+    limit?: number;
+    skip?: number;
+    sortBy?: "newest" | "oldest" | "rating" | "helpful";
+  }) {
+    const query: any = {};
+
+    // کامنت: فیلتر بر اساس وضعیت
+    if (filters?.status) {
+      query.status = filters.status;
+    }
+
+    // کامنت: فیلتر بر اساس محصول
+    if (filters?.productId) {
+      query.product = filters.productId;
+    }
+
+    // کامنت: فیلتر بر اساس کاربر
+    if (filters?.userId) {
+      query.user = filters.userId;
+    }
+
+    // کامنت: فیلتر بر اساس امتیاز
+    if (filters?.rating) {
+      query.rating = filters.rating;
+    }
+
+    // کامنت: مرتب‌سازی
+    const sort: any = {};
+    if (filters?.sortBy === "newest") {
+      sort.createdAt = -1;
+    } else if (filters?.sortBy === "oldest") {
+      sort.createdAt = 1;
+    } else if (filters?.sortBy === "rating") {
+      sort.rating = -1;
+    } else if (filters?.sortBy === "helpful") {
+      sort.helpfulCount = -1;
+    } else {
+      sort.createdAt = -1; // کامنت: پیش‌فرض: جدیدترین
+    }
+
+    const options: any = { sort };
+    if (filters?.limit) {
+      options.limit = filters.limit;
+    }
+    if (filters?.skip) {
+      options.skip = filters.skip;
+    }
+
+    return this.find(query, options);
+  }
 }
 
